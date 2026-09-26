@@ -95,6 +95,15 @@ test("the settings apply through :root variables and persist through state.js", 
   assert.ok(read("lib/autosave.js").includes("setDelay("), "lib/autosave.js must expose setDelay()");
 });
 
+test("the tree label comes from node.path via lib/tree-label.js, so the extension setting can show .md", () => {
+  const treeJs = read("public/js/tree.js");
+  assert.ok(treeJs.includes('from "/lib/tree-label.js"'), "public/js/tree.js must import treeLabel from /lib/tree-label.js");
+  assert.ok(/treeLabel\(node,\s*options\.showExtensions/.test(treeJs), "labelFor must pass options.showExtensions to treeLabel");
+  assert.ok(!/node\.name\.replace\(/.test(treeJs), "the label must not be derived from node.name, which /api/tree has already stripped");
+  const label = read("lib/tree-label.js");
+  assert.ok(!/from\s+"node:/.test(label), "lib/tree-label.js must not import Node-only modules; the browser loads it");
+});
+
 test("nothing under public/ (outside vendor/) says 'vault'", () => {
   const offenders = filesUnder(PUBLIC).filter((f) => /vault/i.test(fs.readFileSync(f, "utf8")));
   assert.deepStrictEqual(offenders.map((f) => path.relative(ROOT, f)), [], "say folder, not vault");
