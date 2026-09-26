@@ -1,0 +1,47 @@
+import sys, subprocess, time, os, json
+from playwright.sync_api import sync_playwright
+OUT="qa/evidence/T-d8a22268fd/"
+port=sys.argv[1] if len(sys.argv)>1 else "3457"
+base=f"http://localhost:{port}"
+def ok(c,m):
+    if not c: print("FAIL",m); sys.exit(1)
+    print("ok",m)
+with sync_playwright() as p:
+    b=p.chromium.launch(); pg=b.new_page(viewport={"width":1280,"height":760})
+    errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
+    bad=[]; pg.on("response",lambda r: bad.append(r.url) if r.status>=400 else None)
+    pg.goto(base); pg.wait_for_selector("#tree .tree-item")
+    pg.screenshot(path=OUT+"01_loaded.png")
+    ok(pg.locator("#ribbon img[src='/brand/mark.png']").count()==1,"mark")
+    ok(pg.locator("#ribbon button").count()==4,"4 ribbon buttons")
+    ok(pg.evaluate("document.documentElement.scrollHeight<=innerHeight"),"no page scroll")
+    s=pg.locator("#search").bounding_box(); t=pg.locator(".titlebar").bounding_box()
+    ok(abs((s["x"]+s["width"]/2)-(t["x"]+t["width"]/2))<2,"search centred")
+    pg.locator("#tree .tree-item.folder").first.click()
+    pg.screenshot(path=OUT+"02_folder_expanded.png")
+    pg.locator("#tree .tree-item:not(.folder)").first.click()
+    pg.wait_for_selector("#tree .tree-item.active")
+    ok(len(pg.inner_text("#note-body"))>5,"raw text shown")
+    ok(pg.locator(".tab.active").count()==1,"tab active")
+    pg.screenshot(path=OUT+"03_note_open.png")
+    pg.locator("#tabbar .tab-new").click()
+    ok(pg.locator(".tab").count()==2,"new tab")
+    pg.keyboard.press("Control+Tab")
+    pg.keyboard.press("Control+p"); ok(pg.evaluate("document.activeElement.id")=="search","ctrl+p")
+    pg.locator("#sort").click(); pg.wait_for_timeout(300)
+    n=pg.locator("#sort").get_attribute("title"); ok("Z to A" in n,"sort cycled "+n)
+    # resize
+    r=pg.locator("#explorer-resizer").bounding_box()
+    pg.mouse.move(r["x"]+3,r["y"]+100); pg.mouse.down(); pg.mouse.move(r["x"]+600,r["y"]+100,steps=5); pg.mouse.up()
+    w=pg.locator("#explorer").bounding_box()["width"]; ok(w==480,f"clamped max {w}")
+    pg.screenshot(path=OUT+"04_resized.png")
+    tabs=pg.locator(".tab").count()
+    pg.reload(); pg.wait_for_selector("#tree .tree-item")
+    ok(pg.locator(".tab").count()==tabs,"tabs restored")
+    ok(pg.locator("#explorer").bounding_box()["width"]==480,"width restored")
+    pg.keyboard.press("Control+w"); ok(pg.locator(".tab").count()==tabs-1,"ctrl+w")
+    pg.screenshot(path=OUT+"05_after_reload_close.png")
+    pg.locator('#ribbon [data-panel=files]').click()
+    ok(pg.locator("#explorer").is_hidden(),"files toggles explorer")
+    ok(not bad,f"no bad responses {bad}"); ok(not errs,f"no js errors {errs}")
+    b.close()

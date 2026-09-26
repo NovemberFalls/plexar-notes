@@ -1,0 +1,11 @@
+/* Plexar Notes app styles. Colours and type come only from /brand/plexar-tokens.css.
+ * This file is what index.html links; the pieces live in the files below. */
+@import "layout.css";
+@import "ribbon.css";
+@import "explorer.css";
+@import "tabs.css";
+@import "note.css";
+@import "backlinks.css";
+@import "settings.css";
+@import "markdown.css";
+@import "code.css";

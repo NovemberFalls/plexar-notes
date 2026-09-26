@@ -1,0 +1,194 @@
+/* The note itself: a centred column with the title on top and the content below, and the
+ * status bar under it. */
+
+#note {
+  overflow: auto;
+  padding: 24px 32px 80px;
+}
+
+.note-column {
+  position: relative;
+  max-width: var(--line-width, 750px); /* 'Readable line width' in settings */
+  margin: 0 auto;
+}
+
+.note-tools {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  gap: 2px;
+}
+/* The star: an outline while off, filled in the accent while on. */
+#star-toggle.starred {
+  color: var(--px-accent);
+}
+#star-toggle.starred svg {
+  fill: currentColor;
+}
+
+.note-title {
+  margin: 4px 68px 20px 0;
+  font-size: 30px;
+  line-height: 1.25;
+}
+
+.note-body {
+  margin: 0;
+}
+.note-body[hidden] {
+  display: none;
+}
+/* The block a search result jumped to, lit for a moment. */
+.note-body .search-target {
+  background: color-mix(in srgb, var(--px-accent) 16%, transparent);
+  border-radius: var(--px-radius-sm);
+  transition: background 700ms ease;
+}
+
+.note-hint {
+  margin: 0;
+  color: var(--px-dim);
+}
+.note-hint[hidden] {
+  display: none;
+}
+
+/* ---- edit mode: a bare textarea in the same column ---- */
+
+/* It grows with its content and at least fills the note area, so #note is what scrolls. */
+.note-editor {
+  display: block;
+  width: 100%;
+  min-height: calc(100vh - var(--titlebar-height) - var(--tabbar-height) - var(--statusbar-height) - 168px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--px-text);
+  font-family: var(--px-font-mono);
+  font-size: 15px;
+  line-height: 1.6;
+  tab-size: 2;
+  caret-color: var(--px-accent);
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+/* 'Editor font' and 'Text size' from settings; the defaults equal the block above. */
+.note-editor {
+  font-family: var(--editor-font, var(--px-font-mono));
+  font-size: calc(15px * var(--text-scale, 1));
+}
+.note-editor[hidden] {
+  display: none;
+}
+.note-editor:focus,
+.note-editor:focus-visible {
+  outline: none; /* the caret in the accent is the focus cue; a ring around the page would not be */
+}
+.note-editor::placeholder {
+  color: var(--px-faint);
+}
+.note-editor::selection {
+  background: color-mix(in srgb, var(--px-accent) 35%, transparent);
+}
+.note-tools .icon-btn[hidden] {
+  display: none;
+}
+
+/* ---- the 'New note' prompt on an empty tab ---- */
+
+.new-note {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 440px;
+  margin: 0;
+}
+.new-note[hidden] {
+  display: none;
+}
+.new-note-label {
+  font-size: 12px;
+  color: var(--px-dim);
+}
+.new-note-input {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius);
+  background: color-mix(in srgb, var(--px-surface) 85%, transparent);
+  color: var(--px-fg);
+  font: inherit;
+  font-size: 15px;
+  caret-color: var(--px-accent);
+}
+.new-note-input::placeholder {
+  color: var(--px-dim);
+}
+.new-note-input:focus {
+  outline: 2px solid var(--px-accent);
+  outline-offset: 0;
+  border-color: transparent;
+}
+.new-note-hint {
+  margin: 0;
+  color: var(--px-dim);
+  font-size: 12px;
+}
+.new-note-hint.is-error {
+  color: var(--px-error);
+}
+
+/* ---- status bar ---- */
+
+#statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--px-dim);
+  background: color-mix(in srgb, var(--px-bg-2) 80%, transparent);
+  border-top: 1px solid var(--px-border);
+}
+.status-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.saved-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--px-ok);
+}
+.status-saved.state-saved .saved-dot {
+  background: var(--px-ok);
+}
+.status-saved.state-dirty .saved-dot,
+.status-saved.state-saving .saved-dot {
+  background: var(--px-warn);
+}
+.status-saved.state-saving .saved-dot {
+  animation: saved-dot-pulse 1s ease-in-out infinite;
+}
+.status-saved.state-error .saved-dot {
+  background: var(--px-error);
+}
+.status-saved.state-error {
+  color: var(--px-error);
+}
+@keyframes saved-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-saved.state-saving .saved-dot {
+    animation: none;
+  }
+}
