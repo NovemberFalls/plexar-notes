@@ -8,6 +8,7 @@ import { createTree } from "./tree.js";
 import { render } from "./render.js";
 import { createEditor, applyModeButton } from "./editor.js";
 import { createSearch } from "./search.js";
+import { openMenu, confirmDialog, pickFolder, pickSystemFolder } from "./menu.js";
 import { titleFrom, toggleTask } from "/lib/markdown.js";
 import { createAutosave } from "/lib/autosave.js";
 import { stats } from "/lib/words.js";
@@ -27,6 +28,8 @@ const navHistory = createHistory();
 const expanded = new Set(state.expanded);
 let loadSeq = 0;
 let notePaths = []; // every .md path in the open folder, for resolving [[links]]
+let treeNodes = []; // the nested tree as /api/tree gave it, for the 'Move to' dialog
+let currentRoot = ""; // absolute path of the open folder, where the folder picker starts
 let current = null; // {path, content, mtime} of the note on screen
 
 // ---- explorer: tree, header buttons, footer ----
@@ -40,6 +43,9 @@ const treeOptions = {
     else expanded.delete(path);
     setExpanded(path, open);
   },
+  onContextMenu: (node, event) => showTreeMenu(node, event),
+  onRename: (path, name) => renameItem(path, name),
+  onCreateFolder: (parent, name) => createFolder(parent, name),
 };
 const tree = createTree($("#tree"), treeOptions);
 
@@ -50,6 +56,8 @@ async function loadTree() {
   $("#folder-name").textContent = body.folder;
   $("#folder-name").title = body.root ? `Open folder: ${body.root}` : "Open folder";
   document.title = `${body.folder} · Plexar Notes`;
+  currentRoot = body.root || "";
+  treeNodes = body.tree;
   notePaths = collectPaths(body.tree);
   tree.setNodes(body.tree);
 }
@@ -78,9 +86,250 @@ $("#collapse-all").addEventListener("click", () => {
   tree.render();
 });
 
-// Placeholders until the file operations task: they exist, have tooltips, and do nothing yet.
-for (const id of ["#new-note", "#new-folder", "#open-folder", "#folder-settings"]) {
-  $(id).addEventListener("click", () => {});
+$("#new-note").addEventListener("click", () => createNote(targetFolder()));
+$("#new-folder").addEventListener("click", () => startNewFolder(targetFolder()));
+
+// The bottom of the panel: open another folder, and the same settings panel the ribbon shows.
+$("#open-folder").addEventListener("click", () => openAnotherFolder());
+$("#folder-settings").addEventListener("click", () => {
+  update({ ribbon: "settings", explorerOpen: true });
+  applyExplorer();
+});
+
+// ---- file operations: new note, new folder, rename, move, delete, open folder ----
+
+function baseName(path) {
+  const i = path.lastIndexOf("/");
+  return i === -1 ? path : path.slice(i + 1);
+}
+
+function joinPath(folder, name) {
+  return folder ? `${folder}/${name}` : name;
+}
+
+// The folder a header button acts on: the selected folder, the selected note's folder, else
+// the top level. Only a real selection counts; keyboard focus alone does not.
+function targetFolder() {
+  const selected = tree.selected();
+  if (!selected) return "";
+  return selected.type === "folder" ? selected.path : folderOf(selected.path);
+}
+
+// 'Untitled', then 'Untitled 2', 'Untitled 3', ... the first that is free in folder.
+function untitledName(folder) {
+  const taken = new Set(notePaths.filter((p) => folderOf(p) === folder).map((p) => baseName(p).toLowerCase()));
+  for (let n = 1; ; n++) {
+    const name = n === 1 ? "Untitled" : `Untitled ${n}`;
+    if (!taken.has(`${name}.md`.toLowerCase())) return name;
+  }
+}
+
+// Open a folder and every folder above it in the tree.
+function expandFolder(folder) {
+  if (!folder) return;
+  const parts = folder.split("/");
+  const next = new Set(state.expanded);
+  for (let i = 1; i <= parts.length; i++) next.add(parts.slice(0, i).join("/"));
+  for (const p of next) expanded.add(p);
+  update({ expanded: [...next] });
+}
+
+// Something failed: say so in a card, never in the console alone.
+function reportError(title, err) {
+  console.error(`Plexar Notes: ${title}`, err);
+  return confirmDialog({ title, text: err && err.message ? err.message : String(err), confirmLabel: "OK" });
+}
+
+function badName(name) {
+  return /[\\/]/.test(name) ? new Error("A name cannot contain / or \\.") : null;
+}
+
+// Make an empty note in folder, open it for editing, and put its name in the tree up for
+// renaming so the first thing typed is the title.
+async function createNote(folder) {
+  const path = joinPath(folder, `${untitledName(folder)}.md`);
+  try {
+    const reply = await api("POST", "/api/file", { path, content: "" });
+    expandFolder(folder);
+    await loadTree();
+    await openNote(reply.path, { mode: "edit" });
+    tree.startRename(reply.path);
+  } catch (err) {
+    reportError("Could not create the note", err);
+  }
+}
+
+function startNewFolder(parent) {
+  expandFolder(parent);
+  tree.startNewFolder(parent);
+}
+
+async function createFolder(parent, name) {
+  const bad = badName(name);
+  if (bad) {
+    tree.render();
+    return reportError("Could not create the folder", bad);
+  }
+  try {
+    const reply = await api("POST", "/api/folder", { path: joinPath(parent, name) });
+    expandFolder(parent);
+    await loadTree();
+    tree.focus(reply.path);
+  } catch (err) {
+    tree.render();
+    reportError("Could not create the folder", err);
+  }
+}
+
+// The inline rename confirmed: a note keeps its .md whatever was typed.
+async function renameItem(path, name) {
+  const node = tree.node(path);
+  if (!node) return;
+  const bad = badName(name);
+  if (bad) {
+    tree.render();
+    return reportError("Could not rename", bad);
+  }
+  const fileName = node.type === "file" && !/\.md$/i.test(name) ? `${name}.md` : name;
+  const to = joinPath(folderOf(path), fileName);
+  if (to === path) {
+    tree.render();
+    return;
+  }
+  await movePath(node, to, "Could not rename");
+}
+
+// 'Move to…': pick a folder from the tree, then move the item there under its own name.
+async function moveWithDialog(node) {
+  const dest = await pickFolder(treeNodes, {
+    title: `Move "${node.name}" to`,
+    rootName: $("#folder-name").textContent,
+    exclude: node.type === "folder" ? node.path : null,
+    current: folderOf(node.path),
+  });
+  if (dest === null) return;
+  const to = joinPath(dest, baseName(node.path));
+  if (to === node.path) return;
+  await movePath(node, to, "Could not move");
+}
+
+// Rename or move node to the path to, then follow it in the tabs, the tree and the history.
+async function movePath(node, to, failTitle) {
+  try {
+    await autosave.flush();
+    const reply = await api("POST", "/api/rename", { from: node.path, to });
+    afterPathChange(node.path, reply.path, node.type === "folder");
+    await loadTree();
+    tree.focus(reply.path);
+  } catch (err) {
+    tree.render();
+    reportError(failTitle, err);
+  }
+}
+
+// Everything that remembered a path under from now points at the same place under to.
+function afterPathChange(from, to, isFolder) {
+  const mapPath = (p) => {
+    if (p === from) return to;
+    if (isFolder && p.startsWith(`${from}/`)) return to + p.slice(from.length);
+    return p;
+  };
+  const tabs = state.tabs.map((t) => (t.path && mapPath(t.path) !== t.path ? { ...t, path: mapPath(t.path) } : t));
+  const nextExpanded = [...new Set(state.expanded.map(mapPath))];
+  expanded.clear();
+  for (const p of nextExpanded) expanded.add(p);
+  update({ tabs, expanded: nextExpanded });
+  navHistory.map(mapPath);
+  if (lastSave.path) lastSave = { ...lastSave, path: mapPath(lastSave.path) };
+  if (current && mapPath(current.path) !== current.path) {
+    current.path = mapPath(current.path);
+    $("#note-title").textContent = titleFrom(current.content, current.path);
+  }
+  treeOptions.activePath = activePath();
+  renderTabs();
+  updateNav();
+}
+
+// Ask, then delete the note or folder and close whatever tabs were showing it.
+async function deleteItem(node) {
+  const ok = await confirmDialog({
+    title: node.type === "folder" ? "Delete folder" : "Delete note",
+    text: `Delete "${node.name}"? This cannot be undone.`,
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await autosave.flush();
+    const route = node.type === "folder" ? "/api/folder" : "/api/file";
+    await api("DELETE", `${route}?path=${encodeURIComponent(node.path)}`);
+    forgetPath(node.path, node.type === "folder");
+    await loadTree();
+    showActive();
+  } catch (err) {
+    reportError("Could not delete", err);
+  }
+}
+
+// Close the tabs on a deleted path (and, for a folder, on everything inside it) and drop it
+// from the history and the expanded folders.
+function forgetPath(path, isFolder) {
+  const gone = (p) => Boolean(p) && (p === path || (isFolder && p.startsWith(`${path}/`)));
+  let { tabs, activeTab: active } = state;
+  for (const t of state.tabs) {
+    if (!gone(t.path)) continue;
+    ({ tabs, activeTab: active } = closeInTabs(tabs, active, t.id));
+    navHistory.remove(t.path);
+  }
+  const nextExpanded = state.expanded.filter((p) => !gone(p));
+  expanded.clear();
+  for (const p of nextExpanded) expanded.add(p);
+  update({ tabs, activeTab: active, expanded: nextExpanded });
+  renderTabs();
+  updateNav();
+}
+
+// The right-click menu on a tree item.
+function showTreeMenu(node, event) {
+  const items = [];
+  if (node.type === "folder") items.push({ label: "New note here", onSelect: () => createNote(node.path) }, { separator: true });
+  items.push(
+    { label: "Rename", onSelect: () => tree.startRename(node.path) },
+    { label: "Move to…", onSelect: () => moveWithDialog(node) },
+    { separator: true },
+    { label: "Delete", danger: true, onSelect: () => deleteItem(node) },
+  );
+  const from = event.target && event.target.closest ? event.target.closest(".tree-item") : null;
+  openMenu(items, { x: event.clientX, y: event.clientY, restoreFocus: from });
+}
+
+// Pick a folder on this machine and serve from it: the tabs close, the tree reloads and the
+// name at the bottom of the panel changes.
+async function openAnotherFolder() {
+  const listFolders = (p) => api("GET", `/api/folders?path=${encodeURIComponent(p || "")}`);
+  const chosen = await pickSystemFolder(listFolders, { start: currentRoot });
+  if (!chosen) return;
+  try {
+    await autosave.flush();
+    await api("POST", "/api/open-folder", { folder: chosen });
+  } catch (err) {
+    reportError("Could not open the folder", err);
+    return;
+  }
+  expanded.clear();
+  update({ tabs: [], activeTab: null, expanded: [] });
+  navHistory.clear();
+  current = null;
+  lastSave = { state: "saved", path: null };
+  treeOptions.activePath = null;
+  renderTabs();
+  try {
+    await loadTree();
+    showActive();
+    updateNav();
+  } catch (err) {
+    showError(err);
+  }
 }
 
 // ---- explorer width and visibility ----

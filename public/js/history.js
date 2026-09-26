@@ -50,6 +50,21 @@ export function createHistory() {
       }
       if (index < 0 && stack.length) index = 0;
     },
+    // A rename or move: every entry is passed through fn and neighbours that became equal merge.
+    map(fn) {
+      for (let i = 0; i < stack.length; i++) stack[i] = fn(stack[i]);
+      for (let i = stack.length - 1; i > 0; i--) {
+        if (stack[i] === stack[i - 1]) {
+          stack.splice(i, 1);
+          if (i <= index) index -= 1;
+        }
+      }
+    },
+    // Forget everything, for when a different folder is opened.
+    clear() {
+      stack.length = 0;
+      index = -1;
+    },
     entries() {
       return stack.slice();
     },

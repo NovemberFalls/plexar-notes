@@ -1,5 +1,7 @@
 // Plexar Notes server. Serves the app from public/, the shared lib/ modules and brand assets,
-// and a JSON API over one folder of Markdown files. Node standard library only.
+// and a JSON API over one folder of Markdown files. The folder given here is the starting
+// point; POST /api/open-folder can switch to another while the server runs. Node standard
+// library only.
 //
 //   node server/server.js [folder]     folder defaults to sample-notes/ next to the repo root
 //   PORT=4000 node server/server.js    env PORT overrides the default port 3000
