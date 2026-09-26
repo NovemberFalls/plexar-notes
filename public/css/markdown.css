@@ -2,7 +2,7 @@
  * quotes, callouts, links, images and code block cards. Colours come only from the tokens. */
 
 .markdown {
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale, 1)); /* 'Text size' in settings */
   line-height: 1.65;
   color: var(--px-text);
   overflow-wrap: break-word;

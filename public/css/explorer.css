@@ -153,6 +153,77 @@ body.resizing .explorer-resizer {
   outline: none;
 }
 
+/* ---- the Starred panel: a row per starred note, its folder under the name ---- */
+
+.starred-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 6px 12px;
+}
+.starred-list > .panel-hint {
+  padding: 8px;
+}
+.starred-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--px-radius-sm);
+}
+.starred-item:hover {
+  background: color-mix(in srgb, var(--px-fg) 6%, transparent);
+}
+.starred-item.active {
+  background: color-mix(in srgb, var(--px-accent) 14%, transparent);
+}
+.starred-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: var(--px-radius-sm);
+  background: transparent;
+  color: var(--px-text);
+  text-align: left;
+  cursor: pointer;
+}
+.starred-open:hover,
+.starred-item.active .starred-open {
+  color: var(--px-fg);
+}
+.starred-item.active .starred-name {
+  color: var(--px-accent);
+}
+.starred-name,
+.starred-path {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.starred-path {
+  font-size: 11px;
+  color: var(--px-dim);
+}
+.starred-remove {
+  width: 24px;
+  height: 24px;
+  margin-right: 4px;
+  opacity: 0;
+}
+.starred-remove svg {
+  width: 14px;
+  height: 14px;
+}
+.starred-item:hover .starred-remove,
+.starred-remove:focus-visible {
+  opacity: 1;
+}
+
 /* ---- menus and dialogs ---- */
 
 .px-menu {

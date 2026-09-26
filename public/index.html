@@ -11,40 +11,36 @@
 <body>
 
 <nav id="ribbon" aria-label="Ribbon">
-  <a class="ribbon-mark" href="/" title="Plexar Notes"><img src="/brand/mark.png" alt="Plexar" width="26" height="26"></a>
-  <button type="button" class="icon-btn ribbon-btn" data-panel="files" data-icon="files" aria-label="Files" title="Files"></button>
-  <button type="button" class="icon-btn ribbon-btn" data-panel="search" data-icon="search" aria-label="Search" title="Search"></button>
-  <button type="button" class="icon-btn ribbon-btn" data-panel="starred" data-icon="star" aria-label="Starred" title="Starred"></button>
+  <a class="ribbon-mark" href="/" aria-label="Plexar Notes" data-tip="Plexar Notes"><img src="/brand/mark.png" alt="" width="26" height="26"></a>
+  <button type="button" class="icon-btn ribbon-btn" data-panel="files" data-icon="files" aria-label="Files" data-tip="Files"></button>
+  <button type="button" class="icon-btn ribbon-btn" data-panel="search" data-icon="search" aria-label="Search" data-tip="Search"></button>
+  <button type="button" class="icon-btn ribbon-btn" data-panel="starred" data-icon="star" aria-label="Starred" data-tip="Starred"></button>
   <div class="ribbon-spacer"></div>
-  <button type="button" class="icon-btn ribbon-btn" data-panel="settings" data-icon="settings" aria-label="Settings" title="Settings"></button>
+  <button type="button" class="icon-btn ribbon-btn" id="ribbon-settings" data-icon="settings" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" data-tip="Settings"></button>
 </nav>
 
 <aside id="explorer" aria-label="Explorer">
   <section class="panel" data-panel="files">
     <header class="panel-header">
-      <button type="button" class="icon-btn" id="new-note" data-icon="filePlus" aria-label="New note" title="New note"></button>
-      <button type="button" class="icon-btn" id="new-folder" data-icon="folderPlus" aria-label="New folder" title="New folder"></button>
-      <button type="button" class="icon-btn" id="sort" data-icon="sort" aria-label="Sort" title="Sort"></button>
-      <button type="button" class="icon-btn" id="collapse-all" data-icon="collapse" aria-label="Collapse all" title="Collapse all"></button>
+      <button type="button" class="icon-btn" id="new-note" data-icon="filePlus" aria-label="New note" data-tip="New note"></button>
+      <button type="button" class="icon-btn" id="new-folder" data-icon="folderPlus" aria-label="New folder" data-tip="New folder"></button>
+      <button type="button" class="icon-btn" id="sort" data-icon="sort" aria-label="Sort" data-tip="Sort"></button>
+      <button type="button" class="icon-btn" id="collapse-all" data-icon="collapse" aria-label="Collapse all" data-tip="Collapse all"></button>
     </header>
     <div id="tree" role="tree" aria-label="Files"></div>
     <footer class="panel-footer">
-      <button type="button" class="icon-btn" id="open-folder" data-icon="folder" aria-label="Open folder" title="Open folder"></button>
+      <button type="button" class="icon-btn" id="open-folder" data-icon="folder" aria-label="Open folder" data-tip="Open folder"></button>
       <span id="folder-name" class="folder-name" title="Open folder">Folder</span>
-      <button type="button" class="icon-btn" id="folder-settings" data-icon="settings" aria-label="Settings" title="Settings"></button>
+      <button type="button" class="icon-btn" id="folder-settings" data-icon="settings" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings" data-tip="Settings"></button>
     </footer>
   </section>
   <section class="panel panel-placeholder" data-panel="search" hidden>
     <header class="panel-header"><h2 class="panel-title">Search</h2></header>
     <p class="panel-hint">Type in the box above to search across notes. Ctrl+P opens a file by name; Ctrl+Shift+F searches in files.</p>
   </section>
-  <section class="panel panel-placeholder" data-panel="starred" hidden>
+  <section class="panel" data-panel="starred" hidden>
     <header class="panel-header"><h2 class="panel-title">Starred</h2></header>
-    <p class="panel-hint">Star a note to keep it here.</p>
-  </section>
-  <section class="panel panel-placeholder" data-panel="settings" hidden>
-    <header class="panel-header"><h2 class="panel-title">Settings</h2></header>
-    <p class="panel-hint">Settings are coming soon.</p>
+    <div id="starred-list" class="starred-list" role="list" aria-label="Starred notes"></div>
   </section>
   <div class="explorer-resizer" id="explorer-resizer" role="separator" aria-orientation="vertical" aria-label="Resize explorer" title="Drag to resize"></div>
 </aside>
@@ -52,8 +48,8 @@
 <main id="main">
   <div class="titlebar">
     <div class="titlebar-nav">
-      <button type="button" class="icon-btn" id="nav-back" data-icon="arrowLeft" aria-label="Back" title="Back" disabled></button>
-      <button type="button" class="icon-btn" id="nav-forward" data-icon="arrowRight" aria-label="Forward" title="Forward" disabled></button>
+      <button type="button" class="icon-btn" id="nav-back" data-icon="arrowLeft" aria-label="Back" data-tip="Back" disabled></button>
+      <button type="button" class="icon-btn" id="nav-forward" data-icon="arrowRight" aria-label="Forward" data-tip="Forward" disabled></button>
     </div>
     <div class="titlebar-search">
       <input id="search" type="search" placeholder="Search notes" aria-label="Search notes" autocomplete="off" spellcheck="false">
@@ -64,7 +60,8 @@
   <section id="note" aria-live="polite">
     <div class="note-column">
       <div class="note-tools">
-        <button type="button" class="icon-btn" id="mode-toggle" data-icon="bookOpen" aria-label="Toggle reading and edit mode" aria-pressed="false" title="Read" hidden></button>
+        <button type="button" class="icon-btn" id="star-toggle" data-icon="star" aria-label="Star this note" aria-pressed="false" data-tip="Star" hidden></button>
+        <button type="button" class="icon-btn" id="mode-toggle" data-icon="bookOpen" aria-label="Toggle reading and edit mode" aria-pressed="false" data-tip="Read" hidden></button>
       </div>
       <h1 id="note-title" class="note-title">No file is open</h1>
       <div id="note-body" class="note-body markdown"></div>
@@ -90,6 +87,53 @@
   <span id="status-words">Words: 0 · Characters: 0</span>
   <span id="status-saved" class="status-saved state-saved" aria-live="polite"><i class="saved-dot" aria-hidden="true"></i><span id="status-saved-text">Saved</span></span>
 </footer>
+
+<dialog id="settings" class="settings" aria-labelledby="settings-title">
+  <header class="settings-header">
+    <h2 id="settings-title" class="settings-title">Settings</h2>
+    <button type="button" class="icon-btn" id="settings-dismiss" data-icon="close" aria-label="Close settings" data-tip="Close"></button>
+  </header>
+  <div class="settings-body">
+    <div class="settings-row">
+      <span class="settings-label" id="setting-font-label">Editor font</span>
+      <div class="seg" role="radiogroup" aria-labelledby="setting-font-label" data-setting="font">
+        <button type="button" role="radio" aria-checked="false" data-value="mono">Mono</button>
+        <button type="button" role="radio" aria-checked="false" data-value="ui">UI</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label" id="setting-text-size-label">Text size</span>
+      <div class="seg" role="radiogroup" aria-labelledby="setting-text-size-label" data-setting="textSize">
+        <button type="button" role="radio" aria-checked="false" data-value="small">Small</button>
+        <button type="button" role="radio" aria-checked="false" data-value="default">Default</button>
+        <button type="button" role="radio" aria-checked="false" data-value="large">Large</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label" id="setting-line-width-label">Readable line width</span>
+      <div class="seg" role="radiogroup" aria-labelledby="setting-line-width-label" data-setting="lineWidth">
+        <button type="button" role="radio" aria-checked="false" data-value="default">Default (750px)</button>
+        <button type="button" role="radio" aria-checked="false" data-value="wide">Wide (900px)</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label" id="setting-autosave-label">Autosave delay</span>
+      <div class="seg" role="radiogroup" aria-labelledby="setting-autosave-label" data-setting="autosave">
+        <button type="button" role="radio" aria-checked="false" data-value="500">0.5s</button>
+        <button type="button" role="radio" aria-checked="false" data-value="1000">1s</button>
+        <button type="button" role="radio" aria-checked="false" data-value="2000">2s</button>
+      </div>
+    </div>
+    <label class="settings-row settings-check" for="setting-extensions">
+      <span class="settings-label">Show file extensions in the tree</span>
+      <input type="checkbox" id="setting-extensions" class="settings-switch" role="switch" aria-checked="false">
+    </label>
+  </div>
+  <footer class="settings-footer">
+    <p class="settings-about"><span class="settings-brand">Plexar Notes</span><span id="settings-folder" class="settings-folder"></span></p>
+    <button type="button" class="px-btn" id="settings-close">Close</button>
+  </footer>
+</dialog>
 
 <script type="module" src="/js/app.js"></script>
 </body>

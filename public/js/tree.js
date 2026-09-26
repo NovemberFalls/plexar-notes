@@ -3,9 +3,11 @@
 // Which folders are expanded and which note is open come in from the caller. The tree also
 // hosts two inline inputs: renaming an item in place and naming a new folder.
 import { icons } from "./icons.js";
+import { treeLabel } from "/lib/tree-label.js";
 
-// options: { expanded: Set<string>, activePath, onOpen(path), onToggle(path, open),
+// options: { expanded: Set<string>, activePath, showExtensions, onOpen(path), onToggle(path, open),
 //            onContextMenu(node, event), onRename(path, name), onCreateFolder(parent, name) }
+// showExtensions: true keeps '.md' on file names; the default hides it.
 export function createTree(container, options) {
   let nodes = [];
   let byPath = new Map(); // path -> node, for anything that needs a node's type or name
@@ -16,6 +18,12 @@ export function createTree(container, options) {
 
   function isOpen(path) {
     return options.expanded.has(path);
+  }
+
+  // The name as the tree shows it. /api/tree already strips '.md' from node.name, so the label
+  // comes from node.path: a note keeps its .md only when extensions are switched on.
+  function labelFor(node) {
+    return treeLabel(node, options.showExtensions === true);
   }
 
   function itemFor(path) {
@@ -107,7 +115,7 @@ export function createTree(container, options) {
       item.setAttribute("aria-level", String(depth + 1));
       item.style.setProperty("--depth", String(depth));
       item.tabIndex = -1;
-      item.title = node.name;
+      item.title = labelFor(node);
 
       if (node.path === selectedPath) {
         item.classList.add("selected");
@@ -134,7 +142,7 @@ export function createTree(container, options) {
       }
       if (renaming === node.path) {
         item.classList.add("renaming");
-        const input = inlineInput(node.name, {
+        const input = inlineInput(labelFor(node), {
           onCommit: (name) => {
             renaming = null;
             options.onRename(node.path, name);
@@ -149,7 +157,7 @@ export function createTree(container, options) {
       } else {
         const label = document.createElement("span");
         label.className = "tree-label";
-        label.textContent = node.name;
+        label.textContent = labelFor(node);
         item.append(label);
       }
       group.append(item);

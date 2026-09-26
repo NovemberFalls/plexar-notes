@@ -1,7 +1,10 @@
 // Plexar Notes browser entry: wires the ribbon, explorer, tabs, title bar and note view
 // together over state.js, and talks to the server for the tree and file contents.
 import { applyIcons } from "./icons.js";
-import { state, update, activeTab, activePath, setExpanded, expandAncestors, nextSort, tabMode, setTabMode, EXPLORER_MIN, EXPLORER_MAX } from "./state.js";
+import {
+  state, update, activeTab, activePath, setExpanded, expandAncestors, nextSort, tabMode, setTabMode,
+  setting, starredIn, isStarred, setStarred, mapStarred, EXPLORER_MIN, EXPLORER_MAX,
+} from "./state.js";
 import { createHistory } from "./history.js";
 import { createTabBar, openInTabs, newTab, closeInTabs, cycleTabs, tabTitle } from "./tabs.js";
 import { createTree } from "./tree.js";
@@ -9,6 +12,8 @@ import { render } from "./render.js";
 import { createEditor, applyModeButton } from "./editor.js";
 import { createSearch } from "./search.js";
 import { createBacklinks } from "./backlinks.js";
+import { createSettings } from "./settings.js";
+import { createStarredPanel } from "./starred.js";
 import { openMenu, confirmDialog, pickFolder, pickSystemFolder } from "./menu.js";
 import { titleFrom, toggleTask } from "/lib/markdown.js";
 import { createAutosave } from "/lib/autosave.js";
@@ -38,6 +43,7 @@ let current = null; // {path, content, mtime} of the note on screen
 const treeOptions = {
   expanded,
   activePath: activePath(),
+  showExtensions: setting("showExtensions"),
   onOpen: (path) => openNote(path),
   onToggle: (path, open) => {
     if (open) expanded.add(path);
@@ -58,9 +64,11 @@ async function loadTree() {
   $("#folder-name").title = body.root ? `Open folder: ${body.root}` : "Open folder";
   document.title = `${body.folder} · Plexar Notes`;
   currentRoot = body.root || "";
+  settings.setFolder(currentRoot || body.folder);
   treeNodes = body.tree;
   notePaths = collectPaths(body.tree);
   tree.setNodes(body.tree);
+  renderStarred();
 }
 
 function collectPaths(nodes, out = []) {
@@ -72,7 +80,7 @@ function collectPaths(nodes, out = []) {
 }
 
 function applySortLabel() {
-  $("#sort").title = SORT_LABELS[state.sort];
+  $("#sort").dataset.tip = SORT_LABELS[state.sort];
 }
 $("#sort").addEventListener("click", async () => {
   update({ sort: nextSort() });
@@ -90,11 +98,55 @@ $("#collapse-all").addEventListener("click", () => {
 $("#new-note").addEventListener("click", () => createNote(targetFolder()));
 $("#new-folder").addEventListener("click", () => startNewFolder(targetFolder()));
 
-// The bottom of the panel: open another folder, and the same settings panel the ribbon shows.
+// The bottom of the panel: open another folder, and the same settings dialog the ribbon opens.
 $("#open-folder").addEventListener("click", () => openAnotherFolder());
-$("#folder-settings").addEventListener("click", () => {
-  update({ ribbon: "settings", explorerOpen: true });
-  applyExplorer();
+$("#folder-settings").addEventListener("click", (event) => settings.open(event.currentTarget));
+
+// ---- settings: the dialog, and what each change does beyond the CSS ----
+
+const settings = createSettings($("#settings"), {
+  onChange: (key, value) => {
+    if (key === "autosave") autosave.setDelay(value);
+    if (key === "showExtensions") {
+      treeOptions.showExtensions = value;
+      tree.render();
+    }
+  },
+});
+$("#ribbon-settings").addEventListener("click", (event) => settings.toggle(event.currentTarget));
+
+// ---- starred notes: the star on the note and the Starred panel ----
+
+const starToggle = $("#star-toggle");
+const starredPanel = createStarredPanel($("#starred-list"), {
+  onOpen: (path) => openNote(path),
+  onRemove: (path) => {
+    setStarred(currentRoot, path, false);
+    renderStarred();
+    applyStar();
+  },
+});
+
+function renderStarred() {
+  starredPanel.render(starredIn(currentRoot), activePath());
+}
+
+// The star on the note reflects whether the note on screen is starred.
+function applyStar() {
+  const path = current ? current.path : null;
+  const on = Boolean(path) && isStarred(currentRoot, path);
+  starToggle.hidden = !path;
+  starToggle.classList.toggle("starred", on);
+  starToggle.setAttribute("aria-pressed", on ? "true" : "false");
+  starToggle.setAttribute("aria-label", on ? "Unstar this note" : "Star this note");
+  starToggle.dataset.tip = on ? "Unstar" : "Star";
+}
+
+starToggle.addEventListener("click", () => {
+  if (!current) return;
+  setStarred(currentRoot, current.path, !isStarred(currentRoot, current.path));
+  applyStar();
+  renderStarred();
 });
 
 // ---- file operations: new note, new folder, rename, move, delete, open folder ----
@@ -241,6 +293,7 @@ function afterPathChange(from, to, isFolder) {
   for (const p of nextExpanded) expanded.add(p);
   update({ tabs, expanded: nextExpanded });
   navHistory.map(mapPath);
+  mapStarred(currentRoot, mapPath);
   if (lastSave.path) lastSave = { ...lastSave, path: mapPath(lastSave.path) };
   if (current && mapPath(current.path) !== current.path) {
     current.path = mapPath(current.path);
@@ -287,6 +340,7 @@ function forgetPath(path, isFolder) {
   expanded.clear();
   for (const p of nextExpanded) expanded.add(p);
   update({ tabs, activeTab: active, expanded: nextExpanded });
+  mapStarred(currentRoot, (p) => (gone(p) ? null : p));
   renderTabs();
   updateNav();
 }
@@ -366,9 +420,10 @@ resizer.addEventListener("pointerdown", (event) => {
   resizer.addEventListener("pointercancel", stop);
 });
 
+// The ribbon marks the panel that is showing; the settings button is not a panel switch.
 function applyExplorer() {
   document.body.classList.toggle("explorer-hidden", !state.explorerOpen);
-  for (const btn of document.querySelectorAll(".ribbon-btn")) {
+  for (const btn of document.querySelectorAll(".ribbon-btn[data-panel]")) {
     const on = state.explorerOpen && btn.dataset.panel === state.ribbon;
     btn.classList.toggle("active", on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
@@ -378,7 +433,7 @@ function applyExplorer() {
   }
 }
 
-for (const btn of document.querySelectorAll(".ribbon-btn")) {
+for (const btn of document.querySelectorAll(".ribbon-btn[data-panel]")) {
   btn.addEventListener("click", () => {
     const panel = btn.dataset.panel;
     if (state.explorerOpen && state.ribbon === panel) update({ explorerOpen: false });
@@ -475,12 +530,14 @@ function showEmpty(title, hint) {
   editor.hide();
   newNoteForm.hidden = true;
   modeToggle.hidden = true;
+  applyStar();
   $("#note-hint").textContent = hint;
   $("#note-hint").hidden = false;
   document.body.classList.remove("has-note", "editing");
   showStats("");
   showSaved("saved");
   backlinks.refresh(null);
+  renderStarred();
 }
 
 // The empty tab: a name box that creates a note in the folder root and opens it for editing.
@@ -509,6 +566,8 @@ function showNote(note, mode = "read") {
   $("#note-hint").hidden = true;
   modeToggle.hidden = false;
   applyModeButton(modeToggle, mode);
+  applyStar();
+  renderStarred();
   document.body.classList.add("has-note");
   document.body.classList.toggle("editing", mode === "edit");
   if (mode === "edit") {
@@ -749,7 +808,7 @@ const backlinks = createBacklinks($("#status-backlinks"), $("#backlinks"), {
 // ---- editing: the textarea, autosave and the mode toggle ----
 
 const autosave = createAutosave({
-  delay: 800,
+  delay: setting("autosave"),
   save: async (path, content) => {
     // keepalive lets a save outlive a closing page, but browsers cap such bodies at 64 KB,
     // so it is only asked for when the page is going away and the note is small.

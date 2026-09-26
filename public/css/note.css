@@ -8,7 +8,7 @@
 
 .note-column {
   position: relative;
-  max-width: 750px;
+  max-width: var(--line-width, 750px); /* 'Readable line width' in settings */
   margin: 0 auto;
 }
 
@@ -19,9 +19,16 @@
   display: flex;
   gap: 2px;
 }
+/* The star: an outline while off, filled in the accent while on. */
+#star-toggle.starred {
+  color: var(--px-accent);
+}
+#star-toggle.starred svg {
+  fill: currentColor;
+}
 
 .note-title {
-  margin: 4px 40px 20px 0;
+  margin: 4px 68px 20px 0;
   font-size: 30px;
   line-height: 1.25;
 }
@@ -69,6 +76,11 @@
   overflow: hidden;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+/* 'Editor font' and 'Text size' from settings; the defaults equal the block above. */
+.note-editor {
+  font-family: var(--editor-font, var(--px-font-mono));
+  font-size: calc(15px * var(--text-scale, 1));
 }
 .note-editor[hidden] {
   display: none;

@@ -144,6 +144,26 @@ test("findNode returns the matching node", async () => {
   assert.strictEqual(findNode(tree, "Projects\\Sub\\Deep.md").path, "Projects/Sub/Deep.md");
 });
 
+// The explorer label is built from node.path, not node.name, because buildTree has already
+// stripped '.md' from the name. This is what 'Show file extensions in the tree' toggles.
+test("treeLabel shows 'alpha' by default and 'alpha.md' with extensions on, from real tree nodes", async () => {
+  const { buildTree, findNode } = await load();
+  const { treeLabel } = await import("../lib/tree-label.js");
+  const tree = buildTree([file("alpha.md"), file("Projects/Plan.MD"), folder("Archive.md")]);
+  const alpha = findNode(tree, "alpha.md");
+  assert.strictEqual(alpha.name, "alpha", "the API name has no extension");
+  assert.strictEqual(treeLabel(alpha, false), "alpha");
+  assert.strictEqual(treeLabel(alpha, true), "alpha.md");
+  assert.strictEqual(treeLabel(alpha, undefined), "alpha", "extensions are off by default");
+  const plan = findNode(tree, "Projects/Plan.MD");
+  assert.strictEqual(treeLabel(plan, false), "Plan");
+  assert.strictEqual(treeLabel(plan, true), "Plan.MD");
+  const archive = findNode(tree, "Archive.md");
+  assert.strictEqual(treeLabel(archive, false), "Archive.md", "folders keep their whole name");
+  assert.strictEqual(treeLabel(archive, true), "Archive.md");
+  assert.strictEqual(treeLabel(null, true), "");
+});
+
 test("findNode returns null when nothing matches", async () => {
   const { buildTree, findNode } = await load();
   const tree = buildTree([file("Top.md"), file("Projects/Sub/Deep.md")]);

@@ -25,7 +25,7 @@ export function insertText(textarea, text) {
 export function applyModeButton(button, mode) {
   const editing = mode === "edit";
   button.innerHTML = editing ? icons.pencil : icons.bookOpen;
-  button.title = editing ? "Edit" : "Read";
+  button.dataset.tip = editing ? "Edit" : "Read";
   button.setAttribute("aria-pressed", editing ? "true" : "false");
 }
 
