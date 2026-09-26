@@ -110,7 +110,7 @@ export function createTabBar(container, handlers) {
         close.type = "button";
         close.className = "icon-btn tab-close";
         close.setAttribute("aria-label", `Close ${tabTitle(tab)}`);
-        close.title = "Close";
+        close.dataset.tip = "Close";
         close.innerHTML = icons.close;
         el.append(label, close);
         strip.append(el);
@@ -119,7 +119,7 @@ export function createTabBar(container, handlers) {
       add.type = "button";
       add.className = "icon-btn tab-new";
       add.setAttribute("aria-label", "New tab");
-      add.title = "New tab";
+      add.dataset.tip = "New tab";
       add.innerHTML = icons.plus;
       frag.append(strip, add);
       container.replaceChildren(frag);

@@ -7,6 +7,10 @@
   --titlebar-height: 40px;
   --tabbar-height: 36px;
   --statusbar-height: 22px;
+  /* Set from the settings dialog (settings.js); these are the defaults. */
+  --text-scale: 1;
+  --line-width: 750px;
+  --editor-font: var(--px-font-mono);
 }
 
 *, *::before, *::after {
@@ -117,6 +121,67 @@ button {
 :focus-visible {
   outline: 2px solid var(--px-accent);
   outline-offset: 1px;
+}
+
+/* Tooltips: any element with data-tip shows it under the pointer on hover or keyboard focus.
+ * One look everywhere, so no icon button leans on the browser's title bubble. */
+[data-tip] {
+  position: relative;
+}
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 3px 8px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius-sm);
+  background: var(--px-elev);
+  color: var(--px-fg-2);
+  font-family: var(--px-font-ui);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 80ms ease 300ms, visibility 0s linear 380ms;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 300ms, 300ms;
+}
+[data-tip]:disabled::after {
+  display: none;
+}
+/* The ribbon's tips sit to its right; the panel footer's and the note tools' would run off
+ * the edge below or to the right, so they go up or hang from the right edge instead. */
+#ribbon [data-tip]::after {
+  top: 50%;
+  left: calc(100% + 10px);
+  transform: translateY(-50%);
+}
+.panel-footer [data-tip]::after {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.note-tools [data-tip]::after,
+.tab-close[data-tip]::after,
+.starred-remove[data-tip]::after,
+.settings-header [data-tip]::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tip]::after {
+    transition: none;
+  }
 }
 
 ::selection {

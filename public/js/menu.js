@@ -289,7 +289,7 @@ export function pickSystemFolder(listFolders, { start = "", title = "Open folder
     const up = document.createElement("button");
     up.type = "button";
     up.className = "icon-btn";
-    up.title = "Up";
+    up.dataset.tip = "Up one folder";
     up.setAttribute("aria-label", "Up one folder");
     up.innerHTML = icons.arrowUp;
     const crumbs = document.createElement("nav");
