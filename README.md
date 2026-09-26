@@ -11,11 +11,18 @@ agents did each task on its own branch, a deterministic gate and a review chain 
 work, and a human gave the final verdict. The `qa/` folder holds the QA notes and screenshots
 each task left behind.
 
+## Documentation
+
+- [User guide](docs/USER-GUIDE.md): install, a tour of the window, writing, links, search, shortcuts, safety.
+- [Server API](docs/API.md): every route, for scripting your notes.
+- [How it was built](showcase/README.md): the goal, the plan, and every task's checks and reviews.
+
 ## Running it
 
     node server/server.js [folder]
 
-Then open http://localhost:3000. The folder defaults to `sample-notes/` in the repo and is
+Then open http://localhost:3000. It listens on this machine only (set `HOST` to change
+that). The folder defaults to `sample-notes/` in the repo and is
 created if missing. Set `PORT` to listen somewhere else:
 
     PORT=4000 node server/server.js ~/notes
