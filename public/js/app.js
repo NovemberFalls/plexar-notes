@@ -7,6 +7,7 @@ import { createTabBar, openInTabs, newTab, closeInTabs, cycleTabs, tabTitle } fr
 import { createTree } from "./tree.js";
 import { render } from "./render.js";
 import { createEditor, applyModeButton } from "./editor.js";
+import { createSearch } from "./search.js";
 import { titleFrom, toggleTask } from "/lib/markdown.js";
 import { createAutosave } from "/lib/autosave.js";
 import { stats } from "/lib/words.js";
@@ -132,6 +133,7 @@ for (const btn of document.querySelectorAll(".ribbon-btn")) {
     if (state.explorerOpen && state.ribbon === panel) update({ explorerOpen: false });
     else update({ ribbon: panel, explorerOpen: true });
     applyExplorer();
+    if (panel === "search") search.focus("text");
   });
 }
 applyExplorer();
@@ -311,7 +313,8 @@ async function showActive() {
   }
 }
 
-// options.mode: 'edit' opens the note straight into edit mode.
+// options.mode: 'edit' opens the note straight into edit mode. Resolves once the note is on
+// screen (or its error is), so a caller can act on the rendered view.
 function openNote(path, { record = true, mode } = {}) {
   expandAncestors(path);
   for (const p of state.expanded) expanded.add(p);
@@ -319,8 +322,9 @@ function openNote(path, { record = true, mode } = {}) {
   if (mode) setTabMode(state.activeTab, mode);
   if (record) navHistory.push(path);
   renderTabs();
-  showActive();
+  const shown = showActive();
   updateNav();
+  return shown;
 }
 
 // Open a note in a tab next to the active one without switching to it (Ctrl+click).
@@ -570,16 +574,74 @@ newNoteForm.addEventListener("submit", async (event) => {
   }
 });
 
+// ---- search: the title bar box, and the jump to the matching block in the reading view ----
+
+const BLOCKS = "h1, h2, h3, h4, h5, h6, p, li, tr, pre, blockquote";
+let jumpTimer = null;
+
+// A snippet as the reader would see it: link and emphasis markers, list bullets, task boxes,
+// table pipes and inline tags gone, whitespace collapsed, lower-cased.
+function plainSnippet(text) {
+  return String(text || "")
+    .replace(/…/g, " ")
+    .replace(/\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g, (m, target, alias) => alias || target)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/<[^>]+>/g, "")
+    .replace(/^[\s>#*\-+|]+/, "")
+    .replace(/^\d+\.\s+/, "")
+    .replace(/^\[[ xX]\]\s*/, "")
+    .replace(/[*_`~\\|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+// The first rendered block whose text holds the snippet, else the first holding every query
+// word, else null.
+function findBlock(body, match, query) {
+  const blocks = Array.from(body.querySelectorAll(BLOCKS));
+  const textOf = (el) => el.textContent.replace(/\s+/g, " ").trim().toLowerCase();
+  const wanted = match ? plainSnippet(match.text) : "";
+  if (wanted) {
+    const hit = blocks.find((el) => textOf(el).includes(wanted));
+    if (hit) return hit;
+  }
+  const words = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
+  return blocks.find((el) => {
+    const text = textOf(el);
+    return words.every((w) => text.includes(w));
+  }) || null;
+}
+
+// Open a note from a search result and, in reading view, scroll to where the hit is.
+async function openNoteAt(path, match, query) {
+  await openNote(path);
+  if (!current || current.path !== path || currentMode() !== "read") return;
+  const target = findBlock(noteBody, match, query);
+  if (!target) return;
+  target.scrollIntoView({ block: "center" });
+  for (const el of noteBody.querySelectorAll(".search-target")) el.classList.remove("search-target");
+  target.classList.add("search-target");
+  clearTimeout(jumpTimer);
+  jumpTimer = setTimeout(() => target.classList.remove("search-target"), 1600);
+}
+
+const search = createSearch($("#search"), $("#search-results"), { onOpen: openNoteAt });
+
 // ---- keyboard shortcuts ----
 
 document.addEventListener("keydown", (event) => {
   const ctrl = event.ctrlKey || event.metaKey;
   if (!ctrl) return;
   const key = event.key.toLowerCase();
-  if ((key === "p" && !event.shiftKey) || (key === "f" && event.shiftKey)) {
+  if (key === "p" && !event.shiftKey) {
     event.preventDefault();
-    $("#search").focus();
-    $("#search").select();
+    search.focus("file");
+  } else if (key === "f" && event.shiftKey) {
+    event.preventDefault();
+    search.focus("text");
   } else if (key === "e" && !event.shiftKey) {
     if (!current) return;
     event.preventDefault();

@@ -1,5 +1,5 @@
 // Route handling for the Plexar Notes server: static app files, the shared lib/ modules for
-// the browser, and the JSON API over the open folder (tree, file and folder operations).
+// the browser, and the JSON API over the open folder (tree, file and folder operations, search).
 // Every path that reaches the folder goes through safeJoin and a realpath check.
 // Node standard library only.
 "use strict";
@@ -36,8 +36,8 @@ const MAX_BODY = 20 * 1024 * 1024; // JSON request bodies over 20 MB are refused
 let libPromise = null;
 function lib() {
   if (!libPromise) {
-    libPromise = Promise.all([import("../lib/paths.js"), import("../lib/tree.js")]).then(
-      ([paths, tree]) => ({ ...paths, ...tree }),
+    libPromise = Promise.all([import("../lib/paths.js"), import("../lib/tree.js"), import("../lib/search.js")]).then(
+      ([paths, tree, search]) => ({ ...paths, ...tree, ...search }),
     );
   }
   return libPromise;
@@ -186,6 +186,59 @@ async function statOrNull(full) {
   }
 }
 
+// ---- the search cache ----
+// Note contents by absolute path, each with the mtime it was read at, so repeated searches
+// only re-read files that changed. A stat still happens per file on every search (walk does
+// it); the cache only saves the reads. Every route that writes forgets what it touched.
+const SEARCH_CACHE_MAX = 5000;
+const searchCache = new Map(); // full path -> {mtime, content}
+
+// Drop the cached content of full and of anything under it (when full is a folder).
+function forgetSearch(full) {
+  searchCache.delete(full);
+  const prefix = full + path.sep;
+  for (const key of searchCache.keys()) if (key.startsWith(prefix)) searchCache.delete(key);
+}
+
+// The content of full as of mtime, from the cache when it is current, else from disk.
+// null when the file cannot be read (it may have vanished since the listing).
+async function cachedContent(full, mtime) {
+  const hit = searchCache.get(full);
+  if (hit && hit.mtime === mtime) return hit.content;
+  let content;
+  try {
+    content = await fs.promises.readFile(full, "utf8");
+  } catch {
+    searchCache.delete(full);
+    return null;
+  }
+  if (searchCache.size >= SEARCH_CACHE_MAX) searchCache.clear();
+  searchCache.set(full, { mtime, content });
+  return content;
+}
+
+// GET /api/search?q=<query>&limit=<n> -> {query, results}; results as lib/search.js gives
+// them, over every .md file under the open folder. An empty query is {query: '', results: []}.
+async function apiSearch(rootFolder, rawQuery, res) {
+  const { isMarkdown, search } = await lib();
+  const params = new URLSearchParams(rawQuery);
+  const query = (params.get("q") || "").trim();
+  if (!query) return sendJson(res, 200, { query: "", results: [] });
+  // limit: a non-negative integer, else lib/search.js's default (Number(null) would be 0).
+  const rawLimit = params.has("limit") ? Number(params.get("limit")) : NaN;
+  const limit = Number.isInteger(rawLimit) && rawLimit >= 0 ? rawLimit : undefined;
+
+  const root = path.resolve(rootFolder);
+  const entries = await walk(root, isMarkdown);
+  const notes = [];
+  for (const entry of entries) {
+    if (entry.type !== "file") continue;
+    const content = await cachedContent(path.join(root, entry.path), entry.mtime);
+    if (content !== null) notes.push({ path: entry.path, content });
+  }
+  sendJson(res, 200, { query, results: search(query, notes, { limit }) });
+}
+
 // GET /api/file?path=a/b.md -> {path, content, mtime}
 async function apiReadFile(rootFolder, rawQuery, res) {
   const { isMarkdown, toPosix } = await lib();
@@ -211,6 +264,7 @@ async function apiWriteFile(rootFolder, req, res) {
   const existing = await statOrNull(full);
   if (existing && !existing.isFile()) throw httpError(409, "a folder is there");
   await fs.promises.writeFile(full, body.content, "utf8");
+  forgetSearch(full);
   const stat = await fs.promises.stat(full);
   sendJson(res, 200, { ok: true, mtime: stat.mtimeMs });
 }
@@ -231,6 +285,7 @@ async function apiCreateFile(rootFolder, req, res) {
     if (err.code === "EEXIST" || err.code === "ENOTDIR") throw httpError(409, "already exists");
     throw err;
   }
+  forgetSearch(full);
   sendJson(res, 200, { ok: true, path: toPosix(rel) });
 }
 
@@ -274,6 +329,8 @@ async function apiRename(rootFolder, req, res) {
     if (err.code === "ENOENT") throw httpError(404, "file not found");
     throw err;
   }
+  forgetSearch(fromFull);
+  forgetSearch(toFull);
   sendJson(res, 200, { ok: true, path: toPosix(to) });
 }
 
@@ -284,6 +341,7 @@ async function apiDeleteFile(rootFolder, rawQuery, res) {
   const stat = await statOrNull(full);
   if (!stat || !stat.isFile()) throw httpError(404, "file not found");
   await fs.promises.unlink(full);
+  forgetSearch(full);
   sendJson(res, 200, { ok: true });
 }
 
@@ -297,6 +355,7 @@ async function apiDeleteFolder(rootFolder, rawQuery, res) {
   const stat = await statOrNull(full);
   if (!stat || !stat.isDirectory()) throw httpError(404, "folder not found");
   await fs.promises.rm(full, { recursive: true, force: true });
+  forgetSearch(full);
   sendJson(res, 200, { ok: true });
 }
 
@@ -306,6 +365,7 @@ const API_METHODS = {
   "/api/file": ["GET", "PUT", "POST", "DELETE"],
   "/api/folder": ["POST", "DELETE"],
   "/api/rename": ["POST"],
+  "/api/search": ["GET"],
 };
 
 async function apiRoute(rootFolder, req, res, rawPath, rawQuery) {
@@ -330,6 +390,8 @@ async function apiRoute(rootFolder, req, res, rawPath, rawQuery) {
       return apiDeleteFolder(rootFolder, rawQuery, res);
     case "POST /api/rename":
       return apiRename(rootFolder, req, res);
+    case "GET /api/search":
+      return apiSearch(rootFolder, rawQuery, res);
     default:
       throw httpError(404, "not found");
   }
