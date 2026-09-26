@@ -5,6 +5,7 @@ const test = require("node:test");
 const { after, before } = require("node:test");
 const assert = require("node:assert");
 const fs = require("fs");
+const http = require("http");
 const os = require("os");
 const path = require("path");
 
@@ -123,6 +124,34 @@ test("a bad JSON body is a 400, not a crash", async () => {
   assert.strictEqual(empty.status, 400);
   const list = await api("POST", "/api/folder", ["x"]);
   assert.strictEqual(list.status, 400);
+});
+
+test("a body over 20 MB reaches the client as a 413", async () => {
+  // Sent in chunks with node:http so the server has to keep reading past the limit; the
+  // reply must be a real status, not a reset connection mid-upload.
+  const chunk = Buffer.alloc(1024 * 1024, 0x61); // 1 MB of 'a'
+  const total = 21 * chunk.length;
+  const status = await new Promise((resolve, reject) => {
+    const req = http.request(
+      `${base}/api/file`,
+      { method: "POST", headers: { "content-type": "application/json", "content-length": total } },
+      (res) => {
+        res.resume();
+        res.on("end", () => resolve(res.statusCode));
+      },
+    );
+    req.on("error", reject);
+    let sent = 0;
+    const pump = () => {
+      while (sent < total) {
+        sent += chunk.length;
+        if (!req.write(chunk)) return req.once("drain", pump);
+      }
+      req.end();
+    };
+    pump();
+  });
+  assert.strictEqual(status, 413);
 });
 
 test("new folder, then move a file into it and the tree reflects it", async () => {

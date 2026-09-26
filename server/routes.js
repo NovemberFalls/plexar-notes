@@ -87,33 +87,29 @@ function requirePath(value, label) {
 }
 
 // Collect the whole request body. Over MAX_BODY (by header or by count) is a 413.
+// An oversize body is still drained to its end before the 413 is raised: answering while the
+// client is mid-upload would make it see a reset connection instead of the status.
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let done = false;
-    const finish = (fn, value) => {
-      if (done) return;
-      done = true;
-      fn(value);
-    };
     const declared = Number(req.headers["content-length"]);
-    if (Number.isFinite(declared) && declared > MAX_BODY) {
-      req.resume();
-      finish(reject, httpError(413, "body too large"));
-      return;
-    }
-    const chunks = [];
+    let tooLarge = Number.isFinite(declared) && declared > MAX_BODY;
+    let chunks = [];
     let size = 0;
     req.on("data", (chunk) => {
-      if (done) return;
+      if (tooLarge) return; // drain and discard
       size += chunk.length;
       if (size > MAX_BODY) {
-        finish(reject, httpError(413, "body too large"));
+        tooLarge = true;
+        chunks = [];
         return;
       }
       chunks.push(chunk);
     });
-    req.on("end", () => finish(resolve, Buffer.concat(chunks)));
-    req.on("error", (err) => finish(reject, err));
+    req.on("end", () => {
+      if (tooLarge) reject(httpError(413, "body too large"));
+      else resolve(Buffer.concat(chunks));
+    });
+    req.on("error", (err) => reject(err));
   });
 }
 
@@ -420,8 +416,6 @@ function handler(rootFolder) {
         res.destroy();
         return;
       }
-      // A refused body may still be streaming in; do not reuse the connection for it.
-      if (status === 413) res.setHeader("connection", "close");
       sendJson(res, status, { error: (err && err.message) || "internal error" });
     });
   };
