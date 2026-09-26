@@ -1,23 +1,7 @@
-/* Plexar Notes app styles. Colours and type come only from /brand/plexar-tokens.css. */
-
-html, body {
-  margin: 0;
-  min-height: 100vh;
-  background: var(--px-bg);
-  color: var(--px-text);
-  font-family: var(--px-font-ui);
-}
-
-.app-header {
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--px-border);
-  background: var(--px-bg-2);
-}
-
-.app-name {
-  margin: 0;
-  font-family: var(--px-font-display);
-  font-weight: 500;
-  font-size: 20px;
-  color: var(--px-fg);
-}
+/* Plexar Notes app styles. Colours and type come only from /brand/plexar-tokens.css.
+ * This file is what index.html links; the pieces live in the files below. */
+@import "layout.css";
+@import "ribbon.css";
+@import "explorer.css";
+@import "tabs.css";
+@import "note.css";

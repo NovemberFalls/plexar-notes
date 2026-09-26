@@ -1,0 +1,44 @@
+/* The ribbon: the narrow strip on the far left with the Plexar mark and the panel switches. */
+
+#ribbon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0 8px;
+  width: var(--ribbon-width);
+  background: color-mix(in srgb, var(--px-bg-2) 80%, transparent);
+  border-right: 1px solid var(--px-border);
+}
+
+.ribbon-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 6px;
+  border-radius: var(--px-radius-sm);
+}
+.ribbon-mark img {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.ribbon-btn {
+  width: 32px;
+  height: 32px;
+}
+.ribbon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+.ribbon-btn.active {
+  color: var(--px-accent);
+  background: color-mix(in srgb, var(--px-accent) 12%, transparent);
+}
+
+.ribbon-spacer {
+  flex: 1 1 auto;
+}

@@ -1,0 +1,117 @@
+/* The title bar (back, forward, the search box in the centre) and the tab bar below it. */
+
+#main {
+  display: grid;
+  grid-template-rows: var(--titlebar-height) var(--tabbar-height) minmax(0, 1fr);
+  background: color-mix(in srgb, var(--px-bg) 55%, transparent);
+}
+
+.titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--px-border);
+}
+.titlebar-nav {
+  display: flex;
+  gap: 2px;
+}
+
+/* The search box sits at the exact centre of the title bar, whatever is on the sides. */
+.titlebar-search {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100% - 120px));
+}
+#search {
+  width: 100%;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius);
+  background: color-mix(in srgb, var(--px-surface) 85%, transparent);
+  color: var(--px-fg);
+  font: inherit;
+  font-size: 13px;
+}
+#search::placeholder {
+  color: var(--px-dim);
+}
+#search::-webkit-search-decoration,
+#search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+#search:focus {
+  outline: 2px solid var(--px-accent);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+/* ---- tabs ---- */
+
+#tabbar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--px-border);
+  min-width: 0;
+}
+.tab-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  min-width: 90px;
+  padding: 0 4px 0 12px;
+  border-top: 2px solid transparent;
+  color: var(--px-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.tab:hover {
+  color: var(--px-fg);
+  background: color-mix(in srgb, var(--px-fg) 5%, transparent);
+}
+.tab.active {
+  color: var(--px-fg);
+  border-top-color: var(--px-accent);
+  background: color-mix(in srgb, var(--px-accent) 8%, transparent);
+}
+.tab-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-close {
+  width: 22px;
+  height: 22px;
+  opacity: 0;
+}
+.tab-close svg {
+  width: 14px;
+  height: 14px;
+}
+.tab:hover .tab-close,
+.tab.active .tab-close,
+.tab-close:focus-visible {
+  opacity: 1;
+}
+.tab-new {
+  align-self: center;
+}

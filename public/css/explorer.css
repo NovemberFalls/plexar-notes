@@ -1,0 +1,147 @@
+/* The explorer: header buttons, the folder tree, and the open folder's name at the bottom.
+ * The other ribbon panels share the same frame with placeholder content. */
+
+#explorer {
+  position: relative;
+  z-index: 2; /* above main, so the resize handle on its right edge stays reachable */
+  display: flex;
+  flex-direction: column;
+  width: var(--explorer-width);
+  background: color-mix(in srgb, var(--px-bg-2) 70%, transparent);
+  border-right: 1px solid var(--px-border);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.panel[hidden] {
+  display: none;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--titlebar-height);
+  padding: 0 8px;
+  flex: 0 0 auto;
+}
+.panel-title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+.panel-hint {
+  margin: 0;
+  padding: 8px 14px;
+  color: var(--px-dim);
+}
+
+.explorer-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+.explorer-resizer:hover,
+body.resizing .explorer-resizer {
+  background: color-mix(in srgb, var(--px-accent) 45%, transparent);
+}
+
+/* ---- the tree ---- */
+
+#tree {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 6px 12px;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 6px 0 calc(6px + var(--depth, 0) * 14px);
+  border-radius: var(--px-radius-sm);
+  color: var(--px-text);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.tree-item:hover {
+  background: color-mix(in srgb, var(--px-fg) 6%, transparent);
+  color: var(--px-fg);
+}
+.tree-item.folder {
+  color: var(--px-fg-2);
+}
+.tree-item.active {
+  color: var(--px-accent);
+  background: color-mix(in srgb, var(--px-accent) 14%, transparent);
+}
+.tree-item:focus-visible {
+  outline-offset: -2px;
+}
+
+.tree-chevron,
+.tree-file-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--px-dim);
+}
+.tree-chevron svg,
+.tree-file-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.tree-chevron svg {
+  transition: transform 120ms ease;
+}
+.tree-item.open .tree-chevron svg {
+  transform: rotate(90deg);
+}
+.tree-item.active .tree-file-icon {
+  color: var(--px-accent);
+}
+
+.tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-empty {
+  margin: 0;
+  padding: 8px;
+  color: var(--px-dim);
+}
+
+/* ---- bottom of the panel ---- */
+
+.panel-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 6px;
+  flex: 0 0 auto;
+  border-top: 1px solid var(--px-border);
+}
+.folder-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--px-font-display);
+  font-size: 12px;
+  color: var(--px-muted);
+}
