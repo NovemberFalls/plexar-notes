@@ -9,7 +9,8 @@ import { icons } from "./icons.js";
 export function createTree(container, options) {
   let nodes = [];
   let byPath = new Map(); // path -> node, for anything that needs a node's type or name
-  let focusedPath = null;
+  let focusedPath = null; // roving tabindex only: where the keyboard would land next
+  let selectedPath = null; // the item the user chose (click, Enter, right-click, or an action)
   let renaming = null; // path of the item whose name is being edited
   let creating = null; // {parent} while a new folder is being named
 
@@ -108,6 +109,11 @@ export function createTree(container, options) {
       item.tabIndex = -1;
       item.title = node.name;
 
+      if (node.path === selectedPath) {
+        item.classList.add("selected");
+        item.setAttribute("aria-selected", "true");
+      }
+
       if (node.type === "folder") {
         const open = isOpen(node.path);
         item.setAttribute("aria-expanded", open ? "true" : "false");
@@ -194,7 +200,25 @@ export function createTree(container, options) {
     focusItem(itemFor(path));
   }
 
+  // Mark path as the chosen item. Only a click, a keyboard activation, a right-click or an
+  // action that made or renamed an item does this; arrow keys and the roving tabindex do not.
+  function select(path) {
+    if (selectedPath === path) return;
+    const before = selectedPath && itemFor(selectedPath);
+    if (before) {
+      before.classList.remove("selected");
+      before.removeAttribute("aria-selected");
+    }
+    selectedPath = path;
+    const after = path && itemFor(path);
+    if (after) {
+      after.classList.add("selected");
+      after.setAttribute("aria-selected", "true");
+    }
+  }
+
   function activate(item) {
+    select(item.dataset.path);
     if (item.classList.contains("folder")) toggle(item.dataset.path, !isOpen(item.dataset.path));
     else options.onOpen(item.dataset.path);
   }
@@ -224,6 +248,7 @@ export function createTree(container, options) {
     focusedPath = node.path;
     for (const other of visibleItems()) other.tabIndex = -1;
     item.tabIndex = 0;
+    select(node.path);
     options.onContextMenu(node, event);
   });
 
@@ -287,6 +312,7 @@ export function createTree(container, options) {
       nodes = Array.isArray(next) ? next : [];
       byPath = index(nodes, new Map());
       if (renaming && !byPath.has(renaming)) renaming = null;
+      if (selectedPath && !byPath.has(selectedPath)) selectedPath = null;
       render();
     },
     render,
@@ -295,10 +321,13 @@ export function createTree(container, options) {
       const el = itemFor(path);
       if (el) el.scrollIntoView({ block: "nearest" });
     },
-    // The node the keyboard or mouse last landed on, or null.
+    // The node the user chose (clicked, activated, right-clicked, or just made), or null when
+    // nothing is selected. Keyboard focus alone does not count.
     selected() {
-      return (focusedPath && byPath.get(focusedPath)) || null;
+      return (selectedPath && byPath.get(selectedPath)) || null;
     },
+    // Choose an item without moving focus, or clear the choice with null.
+    select,
     node(path) {
       return byPath.get(path) || null;
     },
@@ -311,10 +340,12 @@ export function createTree(container, options) {
       creating = { parent };
       render();
     },
-    // Move keyboard focus to an item, for after an action made or renamed it.
+    // Select an item and move keyboard focus to it, for after an action made or renamed it.
     focus(path) {
       const el = itemFor(path);
-      if (el) focusItem(el);
+      if (!el) return;
+      select(path);
+      focusItem(el);
     },
   };
 }

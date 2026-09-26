@@ -82,6 +82,9 @@ body.resizing .explorer-resizer {
 .tree-item.folder {
   color: var(--px-fg-2);
 }
+.tree-item.selected {
+  background: color-mix(in srgb, var(--px-fg) 9%, transparent);
+}
 .tree-item.active {
   color: var(--px-accent);
   background: color-mix(in srgb, var(--px-accent) 14%, transparent);

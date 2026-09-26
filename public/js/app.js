@@ -108,12 +108,11 @@ function joinPath(folder, name) {
 }
 
 // The folder a header button acts on: the selected folder, the selected note's folder, else
-// the open note's folder, else the top level.
+// the top level. Only a real selection counts; keyboard focus alone does not.
 function targetFolder() {
   const selected = tree.selected();
-  if (selected) return selected.type === "folder" ? selected.path : folderOf(selected.path);
-  const path = activePath();
-  return path ? folderOf(path) : "";
+  if (!selected) return "";
+  return selected.type === "folder" ? selected.path : folderOf(selected.path);
 }
 
 // 'Untitled', then 'Untitled 2', 'Untitled 3', ... the first that is free in folder.
