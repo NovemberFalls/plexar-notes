@@ -5,6 +5,8 @@ import { state, update, activeTab, activePath, setExpanded, expandAncestors, nex
 import { createHistory } from "./history.js";
 import { createTabBar, openInTabs, newTab, closeInTabs, cycleTabs, tabTitle } from "./tabs.js";
 import { createTree } from "./tree.js";
+import { render } from "./render.js";
+import { titleFrom, toggleTask } from "/lib/markdown.js";
 
 const SORT_LABELS = {
   "name-asc": "Sort: file name (A to Z)",
@@ -20,6 +22,8 @@ applyIcons();
 const navHistory = createHistory();
 const expanded = new Set(state.expanded);
 let loadSeq = 0;
+let notePaths = []; // every .md path in the open folder, for resolving [[links]]
+let current = null; // {path, content, mtime} of the note on screen
 
 // ---- explorer: tree, header buttons, footer ----
 
@@ -42,7 +46,16 @@ async function loadTree() {
   $("#folder-name").textContent = body.folder;
   $("#folder-name").title = body.root ? `Open folder: ${body.root}` : "Open folder";
   document.title = `${body.folder} · Plexar Notes`;
+  notePaths = collectPaths(body.tree);
   tree.setNodes(body.tree);
+}
+
+function collectPaths(nodes, out = []) {
+  for (const node of nodes || []) {
+    if (node.type === "file") out.push(node.path);
+    else collectPaths(node.children, out);
+  }
+  return out;
 }
 
 function applySortLabel() {
@@ -171,13 +184,36 @@ $("#nav-forward").addEventListener("click", () => {
 
 // ---- note view ----
 
-function fileUrl(path) {
-  return "/files/" + path.split("/").map(encodeURIComponent).join("/");
+function folderOf(path) {
+  const i = path.lastIndexOf("/");
+  return i === -1 ? "" : path.slice(0, i);
+}
+
+// The JSON API's reply, or an Error carrying the server's message.
+async function api(method, url, body) {
+  const init = { method };
+  if (body !== undefined) {
+    init.headers = { "content-type": "application/json" };
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(url, init);
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {}
+  if (!res.ok) {
+    const message = (data && data.error) || `HTTP ${res.status}`;
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
 }
 
 function showEmpty(title, hint) {
+  current = null;
   $("#note-title").textContent = title;
-  $("#note-body").textContent = "";
+  $("#note-body").replaceChildren();
   $("#note-body").hidden = true;
   $("#note-hint").textContent = hint;
   $("#note-hint").hidden = false;
@@ -189,12 +225,29 @@ function showError(err) {
   showEmpty("Something went wrong", err && err.message ? err.message : String(err));
 }
 
-// Fetch and show the active tab's note (raw Markdown for now).
+// Render a note into the column: title on top, the body below. A leading level-1 heading
+// that is the title itself is dropped so it does not appear twice.
+function showNote(note) {
+  current = note;
+  const title = titleFrom(note.content, note.path);
+  $("#note-title").textContent = title;
+  const body = $("#note-body");
+  body.innerHTML = render(note.content, notePaths, { base: folderOf(note.path) });
+  const first = body.firstElementChild;
+  const plain = (s) => s.replace(/[*_`~\\]/g, "").trim();
+  if (first && first.tagName === "H1" && plain(first.textContent) === plain(title)) first.remove();
+  body.hidden = false;
+  $("#note-hint").hidden = true;
+  document.body.classList.add("has-note");
+}
+
+// Fetch and show the active tab's note.
 async function showActive() {
   const tab = activeTab();
   const seq = ++loadSeq;
   treeOptions.activePath = tab ? tab.path : null;
   tree.render();
+  hideConfirm();
   if (!tab) {
     showEmpty("No file is open", "Pick a file in the explorer, or press Ctrl+P to search.");
     return;
@@ -205,21 +258,15 @@ async function showActive() {
   }
   $("#note-title").textContent = tabTitle(tab);
   try {
-    const res = await fetch(fileUrl(tab.path));
-    if (seq !== loadSeq) return; // another note was opened meanwhile
-    if (!res.ok) {
-      let message = `HTTP ${res.status}`;
-      try {
-        message = (await res.json()).error || message;
-      } catch {}
-      throw new Error(res.status === 404 ? `File not found: ${tab.path}` : message);
+    let note;
+    try {
+      note = await api("GET", `/api/file?path=${encodeURIComponent(tab.path)}`);
+    } catch (err) {
+      if (err.status === 404) err.message = `File not found: ${tab.path}`;
+      throw err;
     }
-    const text = await res.text();
-    if (seq !== loadSeq) return;
-    $("#note-body").textContent = text;
-    $("#note-body").hidden = false;
-    $("#note-hint").hidden = true;
-    document.body.classList.add("has-note");
+    if (seq !== loadSeq) return; // another note was opened meanwhile
+    showNote(note);
     $("#note").scrollTop = 0;
     tree.reveal(tab.path);
   } catch (err) {
@@ -236,6 +283,126 @@ function openNote(path, { record = true } = {}) {
   showActive();
   updateNav();
 }
+
+// Open a note in a tab next to the active one without switching to it (Ctrl+click).
+function openNoteInBackground(path) {
+  const next = openInTabs(state.tabs, state.activeTab, path);
+  update({ tabs: next.tabs });
+  renderTabs();
+}
+
+// ---- reading view interactions: links, anchors, copy buttons, task checkboxes ----
+
+const noteBody = $("#note-body");
+
+noteBody.addEventListener("click", (event) => {
+  const copy = event.target.closest(".copy");
+  if (copy && noteBody.contains(copy)) {
+    copyCode(copy);
+    return;
+  }
+  const link = event.target.closest("a");
+  if (!link || !noteBody.contains(link)) return;
+  if (link.classList.contains("wikilink")) {
+    event.preventDefault();
+    const path = link.dataset.path;
+    if (path) {
+      if (event.ctrlKey || event.metaKey) openNoteInBackground(path);
+      else openNote(path);
+    } else {
+      askToCreate(link.dataset.target || link.textContent.trim());
+    }
+    return;
+  }
+  const href = link.getAttribute("href") || "";
+  if (href.startsWith("#")) {
+    event.preventDefault();
+    let id = href.slice(1);
+    try {
+      id = decodeURIComponent(id);
+    } catch {}
+    const target = id && document.getElementById(id);
+    if (target && $("#note").contains(target)) target.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+});
+
+async function copyCode(button) {
+  const code = button.parentElement.querySelector("pre code");
+  const text = code ? code.textContent : "";
+  const label = button.querySelector(".copy-label");
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (err) {
+    console.error("Plexar Notes: copy failed", err);
+    return;
+  }
+  button.classList.add("copied");
+  if (label) label.textContent = "Copied";
+  clearTimeout(button._copiedTimer);
+  button._copiedTimer = setTimeout(() => {
+    button.classList.remove("copied");
+    if (label) label.textContent = "Copy";
+  }, 1500);
+}
+
+// A task checkbox flips the matching "[ ]" / "[x]" in the source and saves the file.
+noteBody.addEventListener("change", async (event) => {
+  const box = event.target;
+  if (!(box instanceof HTMLInputElement) || box.type !== "checkbox" || !current) return;
+  const boxes = Array.from(noteBody.querySelectorAll('input[type="checkbox"]'));
+  const index = boxes.indexOf(box);
+  if (index === -1) return;
+  const note = current;
+  const content = toggleTask(note.content, index, box.checked);
+  const item = box.closest("li");
+  if (item) item.classList.toggle("task-done", box.checked);
+  try {
+    const reply = await api("PUT", "/api/file", { path: note.path, content });
+    note.content = content;
+    if (reply && reply.mtime) note.mtime = reply.mtime;
+  } catch (err) {
+    console.error("Plexar Notes: could not save task", err);
+    box.checked = !box.checked;
+    if (item) item.classList.toggle("task-done", box.checked);
+  }
+});
+
+// ---- the confirm bar: create a note for a [[link]] that has no file yet ----
+
+const confirmBar = $("#confirm-bar");
+let pendingCreate = null;
+
+function hideConfirm() {
+  confirmBar.hidden = true;
+  pendingCreate = null;
+}
+
+function askToCreate(name) {
+  if (!name || !current) return;
+  pendingCreate = { name, folder: folderOf(current.path) };
+  $("#confirm-text").textContent = `Create "${name}"?`;
+  confirmBar.hidden = false;
+  $("#confirm-create").focus();
+}
+
+$("#confirm-cancel").addEventListener("click", hideConfirm);
+$("#confirm-create").addEventListener("click", async () => {
+  if (!pendingCreate) return;
+  const { name, folder } = pendingCreate;
+  const path = folder ? `${folder}/${name}` : name;
+  try {
+    const reply = await api("POST", "/api/file", { path, content: `# ${name}\n` });
+    hideConfirm();
+    await loadTree();
+    openNote(reply.path);
+  } catch (err) {
+    console.error("Plexar Notes: could not create note", err);
+    $("#confirm-text").textContent = `Could not create "${name}": ${err.message}`;
+  }
+});
+confirmBar.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") hideConfirm();
+});
 
 // Reading / edit toggle: a placeholder until editing lands.
 const modeToggle = $("#mode-toggle");
