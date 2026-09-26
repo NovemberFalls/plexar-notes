@@ -67,20 +67,20 @@ function decodePath(raw) {
   }
 }
 
-// One value from the raw query string, URL-decoded exactly once ('+' stays a literal plus).
+// One value from the raw query string, still URL-encoded: requirePath does the single decode.
 // undefined when the name is absent.
 function queryValue(rawQuery, name) {
   for (const part of rawQuery.split("&")) {
     const eq = part.indexOf("=");
     const key = eq === -1 ? part : part.slice(0, eq);
     if (key !== name) continue;
-    return decodePath(eq === -1 ? "" : part.slice(eq + 1));
+    return eq === -1 ? "" : part.slice(eq + 1);
   }
   return undefined;
 }
 
-// A path taken from a query or a JSON body: must be a string, decoded once. safeJoin does
-// the actual guarding later; this only shapes the value.
+// A path taken from a query or a JSON body: must be a string, decoded exactly once here and
+// nowhere else. safeJoin does the actual guarding later; this only shapes the value.
 function requirePath(value, label) {
   if (typeof value !== "string") throw httpError(400, `${label} required`);
   return decodePath(value);

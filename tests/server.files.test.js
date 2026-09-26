@@ -210,6 +210,33 @@ test("delete a file, then reading and deleting it again are 404s", async () => {
   assert.ok(fs.statSync(path.join(tmp, "Moved")).isDirectory());
 });
 
+test("a query path is URL-decoded exactly once: 'a%41.md' is not 'aA.md'", async () => {
+  fs.writeFileSync(path.join(tmp, "a%41.md"), "# percent\n");
+  fs.writeFileSync(path.join(tmp, "aA.md"), "# plain\n");
+  fs.mkdirSync(path.join(tmp, "50%"));
+  fs.writeFileSync(path.join(tmp, "50%", "x.md"), "# half\n");
+
+  // encodeURIComponent('a%41.md') === 'a%2541.md'
+  const read = await api("GET", `/api/file${q("a%41.md")}`);
+  assert.strictEqual(read.status, 200);
+  assert.strictEqual(read.body.path, "a%41.md");
+  assert.strictEqual(read.body.content, "# percent\n");
+  assert.strictEqual((await api("GET", `/api/file${q("aA.md")}`)).body.content, "# plain\n");
+
+  // A raw, undecodable '%' in the wire path is a 400, not a second decode.
+  assert.strictEqual((await api("GET", "/api/file?path=a%41.md")).status, 200); // decodes to aA.md
+  assert.strictEqual((await api("GET", "/api/file?path=100%.md")).status, 400);
+
+  const del = await api("DELETE", `/api/file${q("a%41.md")}`);
+  assert.strictEqual(del.status, 200);
+  assert.ok(!fs.existsSync(path.join(tmp, "a%41.md")));
+  assert.strictEqual(fs.readFileSync(path.join(tmp, "aA.md"), "utf8"), "# plain\n");
+
+  const delFolder = await api("DELETE", `/api/folder${q("50%")}`);
+  assert.strictEqual(delFolder.status, 200);
+  assert.ok(!fs.existsSync(path.join(tmp, "50%")));
+});
+
 test("delete a folder recursively", async () => {
   fs.mkdirSync(path.join(tmp, "Trash", "a", "b"), { recursive: true });
   fs.writeFileSync(path.join(tmp, "Trash", "a", "b", "n.md"), "# n\n");
