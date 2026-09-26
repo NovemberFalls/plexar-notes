@@ -26,9 +26,8 @@ and everything the browser needs is checked in under `public/`.
 ## Features
 
 - Explorer tree with new note, new folder, rename, move and delete from a right-click menu.
-- Open folder: the folder button at the top of the explorer picks another folder on this
-  machine and the server switches to it while running. The folder's name is shown at the
-  bottom of the explorer.
+- Open folder: the folder button at the bottom of the explorer, beside the folder's name,
+  picks another folder on this machine and the server switches to it while running.
 - Tabs with back and forward history. Ctrl-click or Cmd-click a note to open it in a
   background tab.
 - Search box: file names by default, full text on demand.
