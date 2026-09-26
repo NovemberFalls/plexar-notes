@@ -1,0 +1,130 @@
+/* The window: a full-viewport grid of ribbon | explorer | main, with the status bar under
+ * main. Shared primitives (icon buttons, focus rings, the glow) live here too. */
+
+:root {
+  --explorer-width: 260px;
+  --ribbon-width: 44px;
+  --titlebar-height: 40px;
+  --tabbar-height: 36px;
+  --statusbar-height: 22px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: grid;
+  grid-template-columns: var(--ribbon-width) var(--explorer-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--statusbar-height);
+  grid-template-areas:
+    "ribbon explorer main"
+    "ribbon explorer statusbar";
+  height: 100vh;
+  background: var(--px-bg);
+  color: var(--px-text);
+  font-family: var(--px-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A warm glow behind the panels; every panel sits above it, mostly see-through. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--px-accent) 12%, transparent), transparent 60%);
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+body.explorer-hidden {
+  grid-template-columns: var(--ribbon-width) 0 minmax(0, 1fr);
+}
+body.explorer-hidden #explorer {
+  display: none;
+}
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+#ribbon { grid-area: ribbon; }
+#explorer { grid-area: explorer; }
+#main { grid-area: main; }
+#statusbar { grid-area: statusbar; }
+
+h1, h2, h3 {
+  font-family: var(--px-font-display);
+  font-weight: 500;
+  color: var(--px-fg);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Icon buttons: the one button style used everywhere. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--px-radius-sm);
+  background: transparent;
+  color: var(--px-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.icon-btn:hover {
+  background: color-mix(in srgb, var(--px-fg) 8%, transparent);
+  color: var(--px-fg);
+}
+.icon-btn:active {
+  background: color-mix(in srgb, var(--px-fg) 12%, transparent);
+}
+.icon-btn:disabled {
+  color: var(--px-faint);
+  cursor: default;
+  background: transparent;
+}
+.icon-btn.active {
+  color: var(--px-accent);
+}
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--px-accent);
+  outline-offset: 1px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--px-accent) 35%, transparent);
+}
+
+/* Slim scrollbars that match the surfaces. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--px-border) transparent;
+}

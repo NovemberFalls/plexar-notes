@@ -9,9 +9,75 @@
 <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<header class="app-header">
-  <h1 class="app-name">Plexar Notes</h1>
-</header>
+
+<nav id="ribbon" aria-label="Ribbon">
+  <a class="ribbon-mark" href="/" title="Plexar Notes"><img src="/brand/mark.png" alt="Plexar" width="26" height="26"></a>
+  <button type="button" class="icon-btn ribbon-btn" data-panel="files" data-icon="files" aria-label="Files" title="Files"></button>
+  <button type="button" class="icon-btn ribbon-btn" data-panel="search" data-icon="search" aria-label="Search" title="Search"></button>
+  <button type="button" class="icon-btn ribbon-btn" data-panel="starred" data-icon="star" aria-label="Starred" title="Starred"></button>
+  <div class="ribbon-spacer"></div>
+  <button type="button" class="icon-btn ribbon-btn" data-panel="settings" data-icon="settings" aria-label="Settings" title="Settings"></button>
+</nav>
+
+<aside id="explorer" aria-label="Explorer">
+  <section class="panel" data-panel="files">
+    <header class="panel-header">
+      <button type="button" class="icon-btn" id="new-note" data-icon="filePlus" aria-label="New note" title="New note"></button>
+      <button type="button" class="icon-btn" id="new-folder" data-icon="folderPlus" aria-label="New folder" title="New folder"></button>
+      <button type="button" class="icon-btn" id="sort" data-icon="sort" aria-label="Sort" title="Sort"></button>
+      <button type="button" class="icon-btn" id="collapse-all" data-icon="collapse" aria-label="Collapse all" title="Collapse all"></button>
+    </header>
+    <div id="tree" role="tree" aria-label="Files"></div>
+    <footer class="panel-footer">
+      <button type="button" class="icon-btn" id="open-folder" data-icon="folder" aria-label="Open folder" title="Open folder"></button>
+      <span id="folder-name" class="folder-name" title="Open folder">Folder</span>
+      <button type="button" class="icon-btn" id="folder-settings" data-icon="settings" aria-label="Settings" title="Settings"></button>
+    </footer>
+  </section>
+  <section class="panel panel-placeholder" data-panel="search" hidden>
+    <header class="panel-header"><h2 class="panel-title">Search</h2></header>
+    <p class="panel-hint">Search across notes is coming soon.</p>
+  </section>
+  <section class="panel panel-placeholder" data-panel="starred" hidden>
+    <header class="panel-header"><h2 class="panel-title">Starred</h2></header>
+    <p class="panel-hint">Star a note to keep it here.</p>
+  </section>
+  <section class="panel panel-placeholder" data-panel="settings" hidden>
+    <header class="panel-header"><h2 class="panel-title">Settings</h2></header>
+    <p class="panel-hint">Settings are coming soon.</p>
+  </section>
+  <div class="explorer-resizer" id="explorer-resizer" role="separator" aria-orientation="vertical" aria-label="Resize explorer" title="Drag to resize"></div>
+</aside>
+
+<main id="main">
+  <div class="titlebar">
+    <div class="titlebar-nav">
+      <button type="button" class="icon-btn" id="nav-back" data-icon="arrowLeft" aria-label="Back" title="Back" disabled></button>
+      <button type="button" class="icon-btn" id="nav-forward" data-icon="arrowRight" aria-label="Forward" title="Forward" disabled></button>
+    </div>
+    <div class="titlebar-search">
+      <input id="search" type="search" placeholder="Search notes" aria-label="Search notes" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+  <div id="tabbar" aria-label="Open tabs"></div>
+  <section id="note" aria-live="polite">
+    <div class="note-column">
+      <div class="note-tools">
+        <button type="button" class="icon-btn" id="mode-toggle" data-icon="bookOpen" aria-label="Toggle reading and edit mode" title="Reading mode"></button>
+      </div>
+      <h1 id="note-title" class="note-title">No file is open</h1>
+      <pre id="note-body" class="note-body"></pre>
+      <p id="note-hint" class="note-hint">Pick a file in the explorer, or press Ctrl+P to search.</p>
+    </div>
+  </section>
+</main>
+
+<footer id="statusbar">
+  <span id="status-backlinks">Backlinks: 0</span>
+  <span id="status-words">Words: 0 · Characters: 0</span>
+  <span id="status-saved" class="status-saved"><i class="saved-dot" aria-hidden="true"></i>Saved</span>
+</footer>
+
 <script type="module" src="/js/app.js"></script>
 </body>
 </html>

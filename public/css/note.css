@@ -1,0 +1,73 @@
+/* The note itself: a centred column with the title on top and the content below, and the
+ * status bar under it. */
+
+#note {
+  overflow: auto;
+  padding: 24px 32px 80px;
+}
+
+.note-column {
+  position: relative;
+  max-width: 750px;
+  margin: 0 auto;
+}
+
+.note-tools {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  gap: 2px;
+}
+
+.note-title {
+  margin: 4px 40px 20px 0;
+  font-size: 30px;
+  line-height: 1.25;
+}
+
+.note-body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--px-font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--px-text);
+}
+.note-body[hidden] {
+  display: none;
+}
+
+.note-hint {
+  margin: 0;
+  color: var(--px-dim);
+}
+.note-hint[hidden] {
+  display: none;
+}
+
+/* ---- status bar ---- */
+
+#statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--px-dim);
+  background: color-mix(in srgb, var(--px-bg-2) 80%, transparent);
+  border-top: 1px solid var(--px-border);
+}
+.status-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.saved-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--px-ok);
+}
