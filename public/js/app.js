@@ -8,6 +8,7 @@ import { createTree } from "./tree.js";
 import { render } from "./render.js";
 import { createEditor, applyModeButton } from "./editor.js";
 import { createSearch } from "./search.js";
+import { createBacklinks } from "./backlinks.js";
 import { openMenu, confirmDialog, pickFolder, pickSystemFolder } from "./menu.js";
 import { titleFrom, toggleTask } from "/lib/markdown.js";
 import { createAutosave } from "/lib/autosave.js";
@@ -245,6 +246,7 @@ function afterPathChange(from, to, isFolder) {
     current.path = mapPath(current.path);
     $("#note-title").textContent = titleFrom(current.content, current.path);
   }
+  if (current) backlinks.refresh(current.path);
   treeOptions.activePath = activePath();
   renderTabs();
   updateNav();
@@ -478,6 +480,7 @@ function showEmpty(title, hint) {
   document.body.classList.remove("has-note", "editing");
   showStats("");
   showSaved("saved");
+  backlinks.refresh(null);
 }
 
 // The empty tab: a name box that creates a note in the folder root and opens it for editing.
@@ -557,6 +560,7 @@ async function showActive() {
     showNote(note, tabMode(tab));
     $("#note").scrollTop = 0;
     tree.reveal(tab.path);
+    backlinks.refresh(note.path);
   } catch (err) {
     if (seq === loadSeq) showError(err);
   }
@@ -652,6 +656,7 @@ noteBody.addEventListener("change", async (event) => {
     const reply = await api("PUT", "/api/file", { path: note.path, content });
     note.content = content;
     if (reply && reply.mtime) note.mtime = reply.mtime;
+    if (current === note) backlinks.refresh(note.path);
   } catch (err) {
     console.error("Plexar Notes: could not save task", err);
     box.checked = !box.checked;
@@ -734,6 +739,13 @@ function showSaved(saveState) {
   $("#status-saved-text").textContent = SAVED_TEXT[s];
 }
 
+// ---- backlinks: the count in the status bar and the 'Linked mentions' panel ----
+
+const backlinks = createBacklinks($("#status-backlinks"), $("#backlinks"), {
+  fetch: (path) => api("GET", `/api/backlinks?path=${encodeURIComponent(path)}`),
+  onOpen: (path) => openNote(path),
+});
+
 // ---- editing: the textarea, autosave and the mode toggle ----
 
 const autosave = createAutosave({
@@ -743,7 +755,10 @@ const autosave = createAutosave({
     // so it is only asked for when the page is going away and the note is small.
     const keepalive = document.visibilityState === "hidden" && content.length < 30000;
     const reply = await api("PUT", "/api/file", { path, content }, { keepalive });
-    if (current && current.path === path && reply && reply.mtime) current.mtime = reply.mtime;
+    if (current && current.path === path) {
+      if (reply && reply.mtime) current.mtime = reply.mtime;
+      backlinks.refresh(path);
+    }
   },
   onState: (saveState, path) => {
     lastSave = { state: saveState, path };

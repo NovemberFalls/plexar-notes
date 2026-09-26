@@ -1,0 +1,92 @@
+/* Backlinks: the 'Backlinks: N' button in the status bar and the 'Linked mentions' panel it
+ * opens, docked at the right edge of the main area under the tab bar. */
+
+.status-btn {
+  padding: 0 6px;
+  margin: 0 -6px;
+  border: 0;
+  border-radius: var(--px-radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+.status-btn:hover {
+  background: color-mix(in srgb, var(--px-fg) 8%, transparent);
+  color: var(--px-fg);
+}
+.status-btn.active {
+  color: var(--px-accent);
+  background: color-mix(in srgb, var(--px-accent) 14%, transparent);
+}
+
+#backlinks {
+  position: absolute;
+  top: calc(var(--titlebar-height) + var(--tabbar-height));
+  right: 0;
+  bottom: 0;
+  width: min(320px, 45%);
+  overflow: auto;
+  padding: 12px 14px 20px;
+  z-index: 15;
+  background: color-mix(in srgb, var(--px-bg-2) 92%, transparent);
+  border-left: 1px solid var(--px-border);
+  box-shadow: -12px 0 32px color-mix(in srgb, var(--px-bg) 60%, transparent);
+}
+#backlinks[hidden] {
+  display: none;
+}
+
+.backlinks-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--px-muted);
+}
+
+.backlinks-empty {
+  margin: 0;
+  color: var(--px-dim);
+}
+
+.backlinks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.backlink {
+  padding: 8px 10px;
+  border-radius: var(--px-radius-sm);
+  background: color-mix(in srgb, var(--px-surface) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--px-border) 60%, transparent);
+}
+.backlink-title {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-family: var(--px-font-display);
+  font-weight: 500;
+  color: var(--px-fg);
+  cursor: pointer;
+}
+.backlink-title:hover {
+  color: var(--px-accent);
+}
+.backlink-context {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--px-text);
+  overflow-wrap: anywhere;
+}
+.backlink-link {
+  font-weight: 500;
+  color: var(--px-accent);
+}

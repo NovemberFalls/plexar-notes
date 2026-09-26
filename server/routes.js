@@ -39,9 +39,12 @@ const MAX_BODY = 20 * 1024 * 1024; // JSON request bodies over 20 MB are refused
 let libPromise = null;
 function lib() {
   if (!libPromise) {
-    libPromise = Promise.all([import("../lib/paths.js"), import("../lib/tree.js"), import("../lib/search.js")]).then(
-      ([paths, tree, search]) => ({ ...paths, ...tree, ...search }),
-    );
+    libPromise = Promise.all([
+      import("../lib/paths.js"),
+      import("../lib/tree.js"),
+      import("../lib/search.js"),
+      import("../lib/backlinks.js"),
+    ]).then(([paths, tree, search, backlinks]) => ({ ...paths, ...tree, ...search, ...backlinks }));
   }
   return libPromise;
 }
@@ -220,17 +223,10 @@ async function cachedContent(full, mtime) {
   return content;
 }
 
-// GET /api/search?q=<query>&limit=<n> -> {query, results}; results as lib/search.js gives
-// them, over every .md file under the open folder. An empty query is {query: '', results: []}.
-async function apiSearch(rootFolder, rawQuery, res) {
-  const { isMarkdown, search } = await lib();
-  const params = new URLSearchParams(rawQuery);
-  const query = (params.get("q") || "").trim();
-  if (!query) return sendJson(res, 200, { query: "", results: [] });
-  // limit: a non-negative integer, else lib/search.js's default (Number(null) would be 0).
-  const rawLimit = params.has("limit") ? Number(params.get("limit")) : NaN;
-  const limit = Number.isInteger(rawLimit) && rawLimit >= 0 ? rawLimit : undefined;
-
+// Every .md note under the open folder as [{path, content}] (POSIX paths relative to root),
+// contents from the cache where current. Search and backlinks both read from this.
+async function cachedNotes(rootFolder) {
+  const { isMarkdown } = await lib();
   const root = path.resolve(rootFolder);
   const entries = await walk(root, isMarkdown);
   const notes = [];
@@ -239,7 +235,61 @@ async function apiSearch(rootFolder, rawQuery, res) {
     const content = await cachedContent(path.join(root, entry.path), entry.mtime);
     if (content !== null) notes.push({ path: entry.path, content });
   }
+  return notes;
+}
+
+// GET /api/search?q=<query>&limit=<n> -> {query, results}; results as lib/search.js gives
+// them, over every .md file under the open folder. An empty query is {query: '', results: []}.
+async function apiSearch(rootFolder, rawQuery, res) {
+  const { search } = await lib();
+  const params = new URLSearchParams(rawQuery);
+  const query = (params.get("q") || "").trim();
+  if (!query) return sendJson(res, 200, { query: "", results: [] });
+  // limit: a non-negative integer, else lib/search.js's default (Number(null) would be 0).
+  const rawLimit = params.has("limit") ? Number(params.get("limit")) : NaN;
+  const limit = Number.isInteger(rawLimit) && rawLimit >= 0 ? rawLimit : undefined;
+  const notes = await cachedNotes(rootFolder);
   sendJson(res, 200, { query, results: search(query, notes, { limit }) });
+}
+
+// ---- the backlinks index ----
+// Built from the same note list as search and kept only as long as that list is the same:
+// the index remembers the notes it was built from and is rebuilt as soon as the fresh list
+// differs in any path or content. An edit, a new file, a rename or a delete all change that
+// list (they forget the cache entry, or change the walk), so the index is never stale.
+let linkIndex = null; // {root, notes, index}
+
+function sameNotes(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i].path !== b[i].path || a[i].content !== b[i].content) return false;
+  }
+  return true;
+}
+
+async function currentIndex(rootFolder) {
+  const { buildIndex } = await lib();
+  const root = path.resolve(rootFolder);
+  const notes = await cachedNotes(root);
+  if (!linkIndex || linkIndex.root !== root || !sameNotes(linkIndex.notes, notes)) {
+    linkIndex = { root, notes, index: buildIndex(notes) };
+  }
+  return linkIndex.index;
+}
+
+// GET /api/backlinks?path=a/b.md -> {path, count, backlinks: [{from, title, context}]}
+// 400 for a path that is unsafe or not Markdown, 404 when the note is not there.
+async function apiBacklinks(rootFolder, rawQuery, res) {
+  const { isMarkdown, toPosix, backlinksFor } = await lib();
+  const rel = requirePath(queryValue(rawQuery, "path"), "path");
+  if (!isMarkdown(rel)) throw httpError(400, "not a Markdown file");
+  const full = await guardedPath(rootFolder, rel);
+  const stat = await statOrNull(full);
+  if (!stat || !stat.isFile()) throw httpError(404, "file not found");
+  const index = await currentIndex(rootFolder);
+  const posix = toPosix(rel);
+  const backlinks = backlinksFor(index, posix);
+  sendJson(res, 200, { path: posix, count: backlinks.length, backlinks });
 }
 
 // GET /api/file?path=a/b.md -> {path, content, mtime}
@@ -371,6 +421,7 @@ const API_METHODS = {
   "/api/folders": ["GET"],
   "/api/rename": ["POST"],
   "/api/search": ["GET"],
+  "/api/backlinks": ["GET"],
 };
 
 async function apiRoute(ctx, req, res, rawPath, rawQuery) {
@@ -404,6 +455,8 @@ async function apiRoute(ctx, req, res, rawPath, rawQuery) {
       return apiRename(rootFolder, req, res);
     case "GET /api/search":
       return apiSearch(rootFolder, rawQuery, res);
+    case "GET /api/backlinks":
+      return apiBacklinks(rootFolder, rawQuery, res);
     default:
       throw httpError(404, "not found");
   }
@@ -492,6 +545,7 @@ async function apiOpenFolder(ctx, req, res) {
   if (!stat || !stat.isDirectory()) throw httpError(400, "folder not found");
   ctx.root = root;
   searchCache.clear();
+  linkIndex = null;
   sendJson(res, 200, { folder: path.basename(root), root });
 }
 

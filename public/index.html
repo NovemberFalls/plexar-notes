@@ -82,10 +82,11 @@
     <button type="button" class="btn btn-primary" id="confirm-create">Create</button>
     <button type="button" class="btn" id="confirm-cancel">Cancel</button>
   </div>
+  <aside id="backlinks" aria-label="Linked mentions" hidden></aside>
 </main>
 
 <footer id="statusbar">
-  <span id="status-backlinks">Backlinks: 0</span>
+  <button type="button" id="status-backlinks" class="status-btn" aria-pressed="false" aria-expanded="false" aria-controls="backlinks" title="Linked mentions">Backlinks: 0</button>
   <span id="status-words">Words: 0 · Characters: 0</span>
   <span id="status-saved" class="status-saved state-saved" aria-live="polite"><i class="saved-dot" aria-hidden="true"></i><span id="status-saved-text">Saved</span></span>
 </footer>
