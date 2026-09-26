@@ -1,7 +1,7 @@
 // The search box in the title bar: what is typed goes to /api/search after a short pause and
 // the results drop down under the box. Two modes share the one endpoint: 'file' (Ctrl+P) is
 // for opening a note by name and hides the snippets; 'text' (Ctrl+Shift+F) shows them.
-// Every piece of text lands in the DOM through textContent, never innerHTML.
+// Text is only ever set through textContent, so result text is never parsed as markup.
 import { highlight } from "/lib/search.js";
 
 const DEBOUNCE_MS = 150;
