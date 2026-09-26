@@ -32,6 +32,12 @@
 .note-body[hidden] {
   display: none;
 }
+/* The block a search result jumped to, lit for a moment. */
+.note-body .search-target {
+  background: color-mix(in srgb, var(--px-accent) 16%, transparent);
+  border-radius: var(--px-radius-sm);
+  transition: background 700ms ease;
+}
 
 .note-hint {
   margin: 0;

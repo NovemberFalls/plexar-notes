@@ -36,7 +36,7 @@
   </section>
   <section class="panel panel-placeholder" data-panel="search" hidden>
     <header class="panel-header"><h2 class="panel-title">Search</h2></header>
-    <p class="panel-hint">Search across notes is coming soon.</p>
+    <p class="panel-hint">Type in the box above to search across notes. Ctrl+P opens a file by name; Ctrl+Shift+F searches in files.</p>
   </section>
   <section class="panel panel-placeholder" data-panel="starred" hidden>
     <header class="panel-header"><h2 class="panel-title">Starred</h2></header>
@@ -57,6 +57,7 @@
     </div>
     <div class="titlebar-search">
       <input id="search" type="search" placeholder="Search notes" aria-label="Search notes" autocomplete="off" spellcheck="false">
+      <div id="search-results" role="listbox" aria-label="Search results" hidden></div>
     </div>
   </div>
   <div id="tabbar" aria-label="Open tabs"></div>
