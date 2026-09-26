@@ -43,6 +43,7 @@ export const icons = {
   chevronRight: icon('<path d="m9 18 6-6-6-6"/>'),
   arrowLeft: icon('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>'),
   arrowRight: icon('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'),
+  arrowUp: icon('<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>'),
   plus: icon('<path d="M5 12h14"/><path d="M12 5v14"/>'),
   close: icon('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
   bookOpen: icon(

@@ -124,6 +124,293 @@ body.resizing .explorer-resizer {
   color: var(--px-dim);
 }
 
+/* Renaming an item or naming a new folder happens in a text box where the label was. */
+.tree-item.renaming,
+.tree-item.tree-inline {
+  cursor: default;
+}
+.tree-item.renaming:hover,
+.tree-item.tree-inline:hover {
+  background: transparent;
+}
+.tree-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--px-accent);
+  border-radius: var(--px-radius-sm);
+  background: var(--px-surface);
+  color: var(--px-fg);
+  font: inherit;
+  font-size: 13px;
+  caret-color: var(--px-accent);
+}
+.tree-input:focus {
+  outline: none;
+}
+
+/* ---- menus and dialogs ---- */
+
+.px-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius);
+  background: var(--px-elev);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--px-bg) 70%, transparent);
+}
+.px-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--px-radius-sm);
+  background: transparent;
+  color: var(--px-fg-2);
+  text-align: left;
+  cursor: pointer;
+}
+.px-menu-item:hover,
+.px-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--px-fg) 8%, transparent);
+  color: var(--px-fg);
+  outline: none;
+}
+.px-menu-item.danger {
+  color: var(--px-error);
+}
+.px-menu-item.danger:hover,
+.px-menu-item.danger:focus-visible {
+  background: color-mix(in srgb, var(--px-error) 14%, transparent);
+  color: var(--px-error);
+}
+.px-menu-item:disabled {
+  color: var(--px-faint);
+  cursor: default;
+  background: transparent;
+}
+.px-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--px-border);
+}
+
+.px-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--px-bg) 55%, transparent);
+}
+.px-dialog {
+  width: min(380px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius-md);
+  background: var(--px-elev);
+  color: var(--px-fg-2);
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--px-bg) 75%, transparent);
+}
+.px-dialog.wide {
+  width: min(560px, calc(100vw - 32px));
+}
+.px-dialog-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+.px-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+.px-dialog-text {
+  margin: 0;
+  color: var(--px-text);
+  overflow-wrap: anywhere;
+}
+.px-dialog-hint {
+  margin: 0;
+  min-height: 1.5em;
+  font-size: 12px;
+  color: var(--px-dim);
+}
+.px-dialog-hint.is-error {
+  color: var(--px-error);
+}
+.px-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.px-btn {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius-sm);
+  background: transparent;
+  color: var(--px-fg-2);
+  cursor: pointer;
+}
+.px-btn:hover {
+  background: color-mix(in srgb, var(--px-fg) 8%, transparent);
+}
+.px-btn:disabled {
+  color: var(--px-faint);
+  cursor: default;
+  background: transparent;
+}
+.px-btn.primary {
+  background: var(--px-accent);
+  border-color: var(--px-accent);
+  color: var(--px-bg);
+}
+.px-btn.primary:hover {
+  background: color-mix(in srgb, var(--px-accent) 85%, var(--px-fg));
+}
+.px-btn.primary:disabled {
+  background: color-mix(in srgb, var(--px-accent) 35%, transparent);
+  border-color: transparent;
+  color: var(--px-faint);
+}
+.px-btn.danger {
+  background: var(--px-error);
+  border-color: var(--px-error);
+  color: var(--px-bg);
+}
+.px-btn.danger:hover {
+  background: color-mix(in srgb, var(--px-error) 85%, var(--px-fg));
+}
+
+.px-input {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius-sm);
+  background: color-mix(in srgb, var(--px-surface) 85%, transparent);
+  color: var(--px-fg);
+  font: inherit;
+  font-family: var(--px-font-mono);
+  font-size: 12px;
+  caret-color: var(--px-accent);
+}
+.px-input:focus {
+  outline: 2px solid var(--px-accent);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+/* Rows of folders, in the 'Move to' dialog and the folder picker. */
+.px-list {
+  max-height: min(320px, 45vh);
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius-sm);
+  background: color-mix(in srgb, var(--px-surface) 60%, transparent);
+}
+.px-list.tall {
+  height: min(320px, 45vh);
+}
+.px-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px 0 calc(8px + var(--depth, 0) * 14px);
+  border-radius: var(--px-radius-sm);
+  color: var(--px-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.px-row:hover,
+.px-row:focus-visible {
+  background: color-mix(in srgb, var(--px-fg) 6%, transparent);
+  color: var(--px-fg);
+  outline: none;
+}
+.px-row.selected {
+  color: var(--px-accent);
+  background: color-mix(in srgb, var(--px-accent) 14%, transparent);
+}
+.px-row.disabled {
+  color: var(--px-faint);
+  cursor: default;
+}
+.px-row.disabled:hover {
+  background: transparent;
+}
+.px-row-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--px-dim);
+}
+.px-row-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.px-row.selected .px-row-icon {
+  color: var(--px-accent);
+}
+.px-row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.px-list-empty {
+  margin: 0;
+  padding: 8px;
+  color: var(--px-dim);
+}
+
+/* The folder picker's top row: Up, then the path as crumbs. */
+.px-picker-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.px-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+.px-crumb {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--px-radius-sm);
+  background: transparent;
+  color: var(--px-muted);
+  cursor: pointer;
+}
+.px-crumb:hover {
+  background: color-mix(in srgb, var(--px-fg) 8%, transparent);
+  color: var(--px-fg);
+}
+.px-crumb[aria-current] {
+  color: var(--px-fg);
+  font-weight: 500;
+}
+.px-crumb-sep {
+  color: var(--px-faint);
+}
+
 /* ---- bottom of the panel ---- */
 
 .panel-footer {

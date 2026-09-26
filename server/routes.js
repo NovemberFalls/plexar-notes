@@ -1,10 +1,13 @@
 // Route handling for the Plexar Notes server: static app files, the shared lib/ modules for
 // the browser, and the JSON API over the open folder (tree, file and folder operations, search).
-// Every path that reaches the folder goes through safeJoin and a realpath check.
+// Every path that reaches the folder goes through safeJoin and a realpath check. The one
+// exception is the open-folder family (/api/folder, /api/open-folder, /api/folders), which
+// takes absolute paths because it chooses the folder rather than a file inside it.
 // Node standard library only.
 "use strict";
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const REPO = path.join(__dirname, "..");
@@ -363,16 +366,25 @@ async function apiDeleteFolder(rootFolder, rawQuery, res) {
 const API_METHODS = {
   "/api/tree": ["GET", "HEAD"],
   "/api/file": ["GET", "PUT", "POST", "DELETE"],
-  "/api/folder": ["POST", "DELETE"],
+  "/api/folder": ["GET", "POST", "DELETE"],
+  "/api/open-folder": ["POST"],
+  "/api/folders": ["GET"],
   "/api/rename": ["POST"],
   "/api/search": ["GET"],
 };
 
-async function apiRoute(rootFolder, req, res, rawPath, rawQuery) {
+async function apiRoute(ctx, req, res, rawPath, rawQuery) {
   const allowed = API_METHODS[rawPath];
   if (!allowed) throw httpError(404, "not found");
   if (!allowed.includes(req.method)) throw httpError(405, "method not allowed");
+  const rootFolder = ctx.root;
   switch (`${req.method} ${rawPath}`) {
+    case "GET /api/folder":
+      return apiCurrentFolder(ctx, res);
+    case "POST /api/open-folder":
+      return apiOpenFolder(ctx, req, res);
+    case "GET /api/folders":
+      return apiListFolders(rawQuery, res);
     case "GET /api/tree":
     case "HEAD /api/tree":
       return apiTree(rootFolder, new URLSearchParams(rawQuery), res);
@@ -457,16 +469,87 @@ async function apiTree(rootFolder, query, res) {
   sendJson(res, 200, { folder: path.basename(root), root, tree: buildTree(entries, { sort }) });
 }
 
+// ---- the open folder itself ----
+// These are the one place an absolute path is accepted: they pick which folder is served,
+// they never reach inside it.
+
+// GET /api/folder -> {folder, root}: the folder currently open.
+function apiCurrentFolder(ctx, res) {
+  const root = path.resolve(ctx.root);
+  sendJson(res, 200, { folder: path.basename(root), root });
+}
+
+// POST /api/open-folder {folder} -> {folder, root}; folder must be an absolute path to an
+// existing directory (400 otherwise). Every later request is served from it, and the search
+// cache starts over since nothing in it belongs to the new folder.
+async function apiOpenFolder(ctx, req, res) {
+  const body = await readJson(req);
+  const folder = body.folder;
+  if (typeof folder !== "string" || folder.trim() === "") throw httpError(400, "folder required");
+  if (folder.includes("\0") || !path.isAbsolute(folder)) throw httpError(400, "folder must be an absolute path");
+  const root = path.resolve(folder);
+  const stat = await statOrNull(root);
+  if (!stat || !stat.isDirectory()) throw httpError(400, "folder not found");
+  ctx.root = root;
+  searchCache.clear();
+  sendJson(res, 200, { folder: path.basename(root), root });
+}
+
+// Case-insensitive natural order for folder names in the picker.
+const nameOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+// GET /api/folders?path=<absolute or empty> -> {path, parent, folders: [{name, path}]}
+// The subfolders of that path (the home folder when empty) for the folder picker. Only
+// directories; hidden ones and anything that cannot be read are left out. parent is null at
+// the top of a drive or file system.
+async function apiListFolders(rawQuery, res) {
+  const raw = queryValue(rawQuery, "path");
+  const wanted = raw === undefined ? "" : decodePath(raw).trim();
+  if (wanted.includes("\0")) throw httpError(400, "malformed path");
+  if (wanted !== "" && !path.isAbsolute(wanted)) throw httpError(400, "path must be absolute");
+  const dir = path.resolve(wanted === "" ? os.homedir() : wanted);
+  const stat = await statOrNull(dir);
+  if (!stat || !stat.isDirectory()) throw httpError(400, "folder not found");
+  let dirents;
+  try {
+    dirents = await fs.promises.readdir(dir, { withFileTypes: true });
+  } catch {
+    throw httpError(400, "folder cannot be read");
+  }
+  const folders = [];
+  for (const d of dirents) {
+    if (d.name.startsWith(".")) continue;
+    let isDir = d.isDirectory();
+    if (!isDir && d.isSymbolicLink()) {
+      // A link (or a Windows junction) counts when it leads to a folder; one that cannot be
+      // followed is simply left out.
+      try {
+        isDir = (await fs.promises.stat(path.join(dir, d.name))).isDirectory();
+      } catch {
+        isDir = false;
+      }
+    }
+    if (isDir) folders.push({ name: d.name, path: path.join(dir, d.name) });
+  }
+  folders.sort((a, b) => nameOrder.compare(a.name, b.name));
+  const up = path.dirname(dir);
+  sendJson(res, 200, { path: dir, parent: up === dir ? null : up, folders });
+}
+
 // Static prefixes whose files live under public/ keep the prefix in the relative path.
 const PUBLIC_PREFIXES = ["/css/", "/js/", "/vendor/"];
 
-async function route(rootFolder, req, res) {
+// ctx is {root}: the open folder, which POST /api/open-folder may change. A plain string is
+// accepted too and treated as a folder that never changes.
+async function route(ctx, req, res) {
+  if (typeof ctx === "string") ctx = { root: ctx };
+  const rootFolder = ctx.root;
   // Work on the raw request path, never a normalised one, so '..' still reaches safeJoin.
   const q = req.url.indexOf("?");
   const rawPath = q === -1 ? req.url : req.url.slice(0, q);
   const rawQuery = q === -1 ? "" : req.url.slice(q + 1);
 
-  if (rawPath.startsWith("/api/")) return apiRoute(rootFolder, req, res, rawPath, rawQuery);
+  if (rawPath.startsWith("/api/")) return apiRoute(ctx, req, res, rawPath, rawQuery);
 
   if (req.method !== "GET" && req.method !== "HEAD") throw httpError(405, "method not allowed");
 
@@ -483,9 +566,11 @@ async function route(rootFolder, req, res) {
 }
 
 // The request listener for http.createServer. Every failure becomes a JSON {error} reply.
+// The open folder lives in one context shared by every request, so open-folder can switch it.
 function handler(rootFolder) {
+  const ctx = { root: path.resolve(rootFolder) };
   return (req, res) => {
-    route(rootFolder, req, res).catch((err) => {
+    route(ctx, req, res).catch((err) => {
       const status = Number.isInteger(err && err.status) ? err.status : 500;
       if (res.headersSent) {
         res.destroy();
