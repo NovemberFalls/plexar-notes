@@ -1,0 +1,99 @@
+/* The highlight.js theme, in Plexar tokens: keywords in the accent, strings in ok, numbers
+ * in warn, names in the soft accent, comments dimmed. Tuned so JavaScript, Python, HTML,
+ * CSS, JSON, shell and SQL all read at a glance. */
+
+.hljs {
+  color: var(--px-text);
+  background: transparent;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-doctag,
+.hljs-template-tag,
+.hljs-meta .hljs-keyword {
+  color: var(--px-accent);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-quote,
+.hljs-addition,
+.hljs-meta .hljs-string {
+  color: var(--px-ok);
+}
+
+.hljs-comment {
+  color: var(--px-muted);
+  font-style: italic;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: var(--px-warn);
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-section {
+  color: var(--px-fg);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-selector-pseudo {
+  color: var(--px-accent-soft);
+}
+
+.hljs-built_in,
+.hljs-type,
+.hljs-class {
+  color: var(--px-accent-soft);
+}
+
+.hljs-tag {
+  color: var(--px-muted);
+}
+.hljs-name,
+.hljs-tag .hljs-name {
+  color: var(--px-accent);
+}
+.hljs-tag .hljs-attr {
+  color: var(--px-accent-soft);
+}
+.hljs-tag .hljs-string {
+  color: var(--px-ok);
+}
+
+.hljs-meta {
+  color: var(--px-muted);
+}
+
+.hljs-params,
+.hljs-punctuation,
+.hljs-operator,
+.hljs-subst {
+  color: var(--px-text);
+}
+
+.hljs-deletion {
+  color: var(--px-error);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}

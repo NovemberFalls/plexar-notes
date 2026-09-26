@@ -66,10 +66,15 @@
         <button type="button" class="icon-btn" id="mode-toggle" data-icon="bookOpen" aria-label="Toggle reading and edit mode" title="Reading mode"></button>
       </div>
       <h1 id="note-title" class="note-title">No file is open</h1>
-      <pre id="note-body" class="note-body"></pre>
+      <div id="note-body" class="note-body markdown"></div>
       <p id="note-hint" class="note-hint">Pick a file in the explorer, or press Ctrl+P to search.</p>
     </div>
   </section>
+  <div id="confirm-bar" class="confirm-bar" role="alertdialog" aria-live="assertive" hidden>
+    <span id="confirm-text" class="confirm-text"></span>
+    <button type="button" class="btn btn-primary" id="confirm-create">Create</button>
+    <button type="button" class="btn" id="confirm-cancel">Cancel</button>
+  </div>
 </main>
 
 <footer id="statusbar">

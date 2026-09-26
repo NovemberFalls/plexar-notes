@@ -1,6 +1,7 @@
 /* The title bar (back, forward, the search box in the centre) and the tab bar below it. */
 
 #main {
+  position: relative; /* the confirm bar floats over the note */
   display: grid;
   grid-template-rows: var(--titlebar-height) var(--tabbar-height) minmax(0, 1fr);
   background: color-mix(in srgb, var(--px-bg) 55%, transparent);

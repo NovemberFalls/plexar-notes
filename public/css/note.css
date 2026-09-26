@@ -28,12 +28,6 @@
 
 .note-body {
   margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-family: var(--px-font-mono);
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--px-text);
 }
 .note-body[hidden] {
   display: none;
