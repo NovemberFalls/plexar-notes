@@ -302,6 +302,79 @@ test("every route is a 400 for '..', backslash '..' and absolute paths; the outs
   assert.ok(fs.existsSync(outsideAbs));
 });
 
+// A symbolic link at linkPath pointing at target. Returns false (and the caller skips) when
+// the OS refuses to create links, as Windows does without developer mode or admin rights.
+function tryLink(target, linkPath, type) {
+  try {
+    fs.symlinkSync(target, linkPath, type);
+    return true;
+  } catch (err) {
+    if (err.code === "EPERM" || err.code === "EACCES" || err.code === "ENOSYS") return false;
+    throw err;
+  }
+}
+
+const expectEscape = async (label, promise) => {
+  const res = await promise;
+  assert.strictEqual(res.status, 400, `${label} -> ${res.status} ${JSON.stringify(res.body)}`);
+  assert.strictEqual(typeof res.body.error, "string", label);
+  assert.ok(!("content" in res.body), label);
+};
+
+test("a file link that points outside the folder is refused and the outside file is unchanged", async (t) => {
+  const link = path.join(tmp, "Linked.md");
+  if (!tryLink(outsideAbs, link, "file")) return t.skip("symlinks are not permitted here");
+
+  await expectEscape("GET", api("GET", `/api/file${q("Linked.md")}`));
+  await expectEscape("PUT", api("PUT", "/api/file", { path: "Linked.md", content: "pwned" }));
+  await expectEscape("POST create", api("POST", "/api/file", { path: "Linked.md", content: "pwned" }));
+  await expectEscape("rename from", api("POST", "/api/rename", { from: "Linked.md", to: "Renamed.md" }));
+  await expectEscape("DELETE", api("DELETE", `/api/file${q("Linked.md")}`));
+
+  assert.strictEqual(fs.readFileSync(outsideAbs, "utf8"), OUTSIDE_CONTENT);
+  assert.ok(fs.lstatSync(link).isSymbolicLink(), "the link itself is still there");
+  assert.ok(!fs.existsSync(path.join(tmp, "Renamed.md")));
+});
+
+test("a folder link to a directory outside the folder is refused for create and delete", async (t) => {
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "plexar-outside-dir-"));
+  t.after(() => fs.rmSync(outsideDir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(outsideDir, "keep.md"), "# keep\n");
+  const link = path.join(tmp, "LinkedFolder");
+  if (!tryLink(outsideDir, link, process.platform === "win32" ? "junction" : "dir")) {
+    return t.skip("symlinks are not permitted here");
+  }
+
+  await expectEscape("POST file", api("POST", "/api/file", { path: "LinkedFolder/x.md", content: "pwned" }));
+  await expectEscape("POST folder", api("POST", "/api/folder", { path: "LinkedFolder/sub" }));
+  await expectEscape("GET", api("GET", `/api/file${q("LinkedFolder/keep.md")}`));
+  await expectEscape("DELETE folder", api("DELETE", `/api/folder${q("LinkedFolder")}`));
+  await expectEscape("rename into", api("POST", "/api/rename", { from: "Anchor.md", to: "LinkedFolder/Anchor.md" }));
+
+  assert.ok(!fs.existsSync(path.join(outsideDir, "x.md")));
+  assert.ok(!fs.existsSync(path.join(outsideDir, "sub")));
+  assert.strictEqual(fs.readFileSync(path.join(outsideDir, "keep.md"), "utf8"), "# keep\n");
+  assert.ok(fs.existsSync(path.join(tmp, "Anchor.md")));
+  assert.ok(fs.lstatSync(link).isSymbolicLink() || fs.lstatSync(link).isDirectory(), "the link is still there");
+});
+
+test("a dangling link to a missing outside path is refused, and nothing is created there", async (t) => {
+  const target = path.join(os.tmpdir(), `plexar-dangling-${path.basename(tmp).slice("plexar-notes-".length)}.md`);
+  fs.rmSync(target, { force: true });
+  const link = path.join(tmp, "Dangling.md");
+  if (!tryLink(target, link, "file")) return t.skip("symlinks are not permitted here");
+
+  await expectEscape("PUT", api("PUT", "/api/file", { path: "Dangling.md", content: "pwned" }));
+  await expectEscape("POST create", api("POST", "/api/file", { path: "Dangling.md", content: "pwned" }));
+  await expectEscape("GET", api("GET", `/api/file${q("Dangling.md")}`));
+  await expectEscape("DELETE", api("DELETE", `/api/file${q("Dangling.md")}`));
+  await expectEscape("rename onto", api("POST", "/api/rename", { from: "Anchor.md", to: "Dangling.md" }));
+
+  assert.strictEqual(fs.existsSync(target), false, "nothing was written through the dangling link");
+  assert.ok(fs.lstatSync(link).isSymbolicLink());
+  assert.ok(fs.existsSync(path.join(tmp, "Anchor.md")));
+});
+
 test("unknown API paths are 404 and wrong methods are 405", async () => {
   assert.strictEqual((await api("GET", "/api/nope")).status, 404);
   assert.strictEqual((await api("PATCH", "/api/file")).status, 405);

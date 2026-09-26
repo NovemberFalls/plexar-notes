@@ -129,6 +129,8 @@ async function readJson(req) {
 
 // The real path of full, or of its nearest existing ancestor with the missing tail appended,
 // so a path that does not exist yet can still be checked against the real root.
+// A dangling symlink is not "missing": realpath fails on it, but a write would follow it to
+// wherever it points, so it is refused outright rather than walked past.
 async function nearestRealpath(full) {
   let probe = full;
   const tail = [];
@@ -138,11 +140,22 @@ async function nearestRealpath(full) {
       return tail.length ? path.join(real, ...tail) : real;
     } catch (err) {
       if (err.code !== "ENOENT" && err.code !== "ENOTDIR") throw err;
+      if (await isSymlink(probe)) throw httpError(400, "path escapes folder");
       const parent = path.dirname(probe);
       if (parent === probe) throw err;
       tail.unshift(path.basename(probe));
       probe = parent;
     }
+  }
+}
+
+// True when the path itself is a symbolic link (followed or not); false when it is absent.
+async function isSymlink(full) {
+  try {
+    return (await fs.promises.lstat(full)).isSymbolicLink();
+  } catch (err) {
+    if (err.code === "ENOENT" || err.code === "ENOTDIR") return false;
+    throw err;
   }
 }
 
