@@ -63,11 +63,17 @@
   <section id="note" aria-live="polite">
     <div class="note-column">
       <div class="note-tools">
-        <button type="button" class="icon-btn" id="mode-toggle" data-icon="bookOpen" aria-label="Toggle reading and edit mode" title="Reading mode"></button>
+        <button type="button" class="icon-btn" id="mode-toggle" data-icon="bookOpen" aria-label="Toggle reading and edit mode" aria-pressed="false" title="Read" hidden></button>
       </div>
       <h1 id="note-title" class="note-title">No file is open</h1>
       <div id="note-body" class="note-body markdown"></div>
+      <textarea id="note-editor" class="note-editor" aria-label="Note text" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="soft" hidden></textarea>
       <p id="note-hint" class="note-hint">Pick a file in the explorer, or press Ctrl+P to search.</p>
+      <form id="new-note-form" class="new-note" hidden>
+        <label class="new-note-label" for="new-note-name">Name</label>
+        <input id="new-note-name" class="new-note-input" type="text" placeholder="Untitled" autocomplete="off" spellcheck="false">
+        <p id="new-note-hint" class="new-note-hint">Press Enter to create the note in the folder root and start writing.</p>
+      </form>
     </div>
   </section>
   <div id="confirm-bar" class="confirm-bar" role="alertdialog" aria-live="assertive" hidden>
@@ -80,7 +86,7 @@
 <footer id="statusbar">
   <span id="status-backlinks">Backlinks: 0</span>
   <span id="status-words">Words: 0 · Characters: 0</span>
-  <span id="status-saved" class="status-saved"><i class="saved-dot" aria-hidden="true"></i>Saved</span>
+  <span id="status-saved" class="status-saved state-saved" aria-live="polite"><i class="saved-dot" aria-hidden="true"></i><span id="status-saved-text">Saved</span></span>
 </footer>
 
 <script type="module" src="/js/app.js"></script>

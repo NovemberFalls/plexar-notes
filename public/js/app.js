@@ -1,12 +1,15 @@
 // Plexar Notes browser entry: wires the ribbon, explorer, tabs, title bar and note view
 // together over state.js, and talks to the server for the tree and file contents.
-import { applyIcons, icons } from "./icons.js";
-import { state, update, activeTab, activePath, setExpanded, expandAncestors, nextSort, EXPLORER_MIN, EXPLORER_MAX } from "./state.js";
+import { applyIcons } from "./icons.js";
+import { state, update, activeTab, activePath, setExpanded, expandAncestors, nextSort, tabMode, setTabMode, EXPLORER_MIN, EXPLORER_MAX } from "./state.js";
 import { createHistory } from "./history.js";
 import { createTabBar, openInTabs, newTab, closeInTabs, cycleTabs, tabTitle } from "./tabs.js";
 import { createTree } from "./tree.js";
 import { render } from "./render.js";
+import { createEditor, applyModeButton } from "./editor.js";
 import { titleFrom, toggleTask } from "/lib/markdown.js";
+import { createAutosave } from "/lib/autosave.js";
+import { stats } from "/lib/words.js";
 
 const SORT_LABELS = {
   "name-asc": "Sort: file name (A to Z)",
@@ -189,9 +192,10 @@ function folderOf(path) {
   return i === -1 ? "" : path.slice(0, i);
 }
 
-// The JSON API's reply, or an Error carrying the server's message.
-async function api(method, url, body) {
-  const init = { method };
+// The JSON API's reply, or an Error carrying the server's message. extra merges into the
+// fetch init (for example keepalive on a save that must outlive the page).
+async function api(method, url, body, extra = {}) {
+  const init = { method, ...extra };
   if (body !== undefined) {
     init.headers = { "content-type": "application/json" };
     init.body = JSON.stringify(body);
@@ -215,9 +219,24 @@ function showEmpty(title, hint) {
   $("#note-title").textContent = title;
   $("#note-body").replaceChildren();
   $("#note-body").hidden = true;
+  editor.hide();
+  newNoteForm.hidden = true;
+  modeToggle.hidden = true;
   $("#note-hint").textContent = hint;
   $("#note-hint").hidden = false;
-  document.body.classList.remove("has-note");
+  document.body.classList.remove("has-note", "editing");
+  showStats("");
+  showSaved("saved");
+}
+
+// The empty tab: a name box that creates a note in the folder root and opens it for editing.
+function showNewNotePrompt() {
+  showEmpty("New note", "");
+  $("#note-hint").hidden = true;
+  setNewNoteHint(null);
+  $("#new-note-name").value = "";
+  newNoteForm.hidden = false;
+  $("#new-note-name").focus();
 }
 
 function showError(err) {
@@ -227,24 +246,40 @@ function showError(err) {
 
 // Render a note into the column: title on top, the body below. A leading level-1 heading
 // that is the title itself is dropped so it does not appear twice.
-function showNote(note) {
+function showNote(note, mode = "read") {
   current = note;
   const title = titleFrom(note.content, note.path);
   $("#note-title").textContent = title;
   const body = $("#note-body");
-  body.innerHTML = render(note.content, notePaths, { base: folderOf(note.path) });
-  const first = body.firstElementChild;
-  const plain = (s) => s.replace(/[*_`~\\]/g, "").trim();
-  if (first && first.tagName === "H1" && plain(first.textContent) === plain(title)) first.remove();
-  body.hidden = false;
+  newNoteForm.hidden = true;
   $("#note-hint").hidden = true;
+  modeToggle.hidden = false;
+  applyModeButton(modeToggle, mode);
   document.body.classList.add("has-note");
+  document.body.classList.toggle("editing", mode === "edit");
+  if (mode === "edit") {
+    body.replaceChildren();
+    body.hidden = true;
+    editor.load(note.content);
+    editor.show();
+  } else {
+    editor.hide();
+    body.innerHTML = render(note.content, notePaths, { base: folderOf(note.path) });
+    const first = body.firstElementChild;
+    const plain = (s) => s.replace(/[*_`~\\]/g, "").trim();
+    if (first && first.tagName === "H1" && plain(first.textContent) === plain(title)) first.remove();
+    body.hidden = false;
+  }
+  showStats(note.content);
+  showSaved(lastSave.path === note.path ? lastSave.state : "saved");
 }
 
 // Fetch and show the active tab's note.
 async function showActive() {
   const tab = activeTab();
   const seq = ++loadSeq;
+  // Anything typed into the note on screen goes out before the next view replaces it.
+  const flushed = autosave.flush();
   treeOptions.activePath = tab ? tab.path : null;
   tree.render();
   hideConfirm();
@@ -253,11 +288,13 @@ async function showActive() {
     return;
   }
   if (!tab.path) {
-    showEmpty("New tab", "Pick a file in the explorer to open it here.");
+    showNewNotePrompt();
     return;
   }
   $("#note-title").textContent = tabTitle(tab);
   try {
+    await flushed; // so the read below sees the write
+    if (seq !== loadSeq) return;
     let note;
     try {
       note = await api("GET", `/api/file?path=${encodeURIComponent(tab.path)}`);
@@ -266,7 +303,7 @@ async function showActive() {
       throw err;
     }
     if (seq !== loadSeq) return; // another note was opened meanwhile
-    showNote(note);
+    showNote(note, tabMode(tab));
     $("#note").scrollTop = 0;
     tree.reveal(tab.path);
   } catch (err) {
@@ -274,10 +311,12 @@ async function showActive() {
   }
 }
 
-function openNote(path, { record = true } = {}) {
+// options.mode: 'edit' opens the note straight into edit mode.
+function openNote(path, { record = true, mode } = {}) {
   expandAncestors(path);
   for (const p of state.expanded) expanded.add(p);
   update(openInTabs(state.tabs, state.activeTab, path));
+  if (mode) setTabMode(state.activeTab, mode);
   if (record) navHistory.push(path);
   renderTabs();
   showActive();
@@ -404,12 +443,131 @@ confirmBar.addEventListener("keydown", (event) => {
   if (event.key === "Escape") hideConfirm();
 });
 
-// Reading / edit toggle: a placeholder until editing lands.
+// ---- status bar: word count and the saved indicator ----
+
+// Call fn at most once per ms, always ending with the latest arguments.
+function throttle(fn, ms) {
+  let timer = null;
+  let last = 0;
+  let args = null;
+  return (...next) => {
+    args = next;
+    const wait = ms - (Date.now() - last);
+    if (wait <= 0) {
+      last = Date.now();
+      fn(...args);
+    } else if (timer === null) {
+      timer = setTimeout(() => {
+        timer = null;
+        last = Date.now();
+        fn(...args);
+      }, wait);
+    }
+  };
+}
+
+const showStats = throttle((markdown) => {
+  const { words, chars } = stats(markdown);
+  $("#status-words").textContent = `Words: ${words} · Characters: ${chars}`;
+}, 250);
+
+const SAVED_TEXT = { saved: "Saved", dirty: "Unsaved changes", saving: "Saving…", error: "Save failed" };
+let lastSave = { state: "saved", path: null }; // the newest autosave state, and whose it is
+
+function showSaved(saveState) {
+  const el = $("#status-saved");
+  const s = SAVED_TEXT[saveState] ? saveState : "saved";
+  el.className = `status-saved state-${s}`;
+  $("#status-saved-text").textContent = SAVED_TEXT[s];
+}
+
+// ---- editing: the textarea, autosave and the mode toggle ----
+
+const autosave = createAutosave({
+  delay: 800,
+  save: async (path, content) => {
+    // keepalive lets a save outlive a closing page, but browsers cap such bodies at 64 KB,
+    // so it is only asked for when the page is going away and the note is small.
+    const keepalive = document.visibilityState === "hidden" && content.length < 30000;
+    const reply = await api("PUT", "/api/file", { path, content }, { keepalive });
+    if (current && current.path === path && reply && reply.mtime) current.mtime = reply.mtime;
+  },
+  onState: (saveState, path) => {
+    lastSave = { state: saveState, path };
+    if (saveState === "error") console.error("Plexar Notes: could not save", path);
+    if (current && current.path === path) showSaved(saveState);
+  },
+});
+
+const editor = createEditor($("#note-editor"), {
+  onInput: (value) => {
+    if (!current) return;
+    current.content = value;
+    autosave.change(current.path, value);
+    showStats(value);
+  },
+});
+
 const modeToggle = $("#mode-toggle");
-modeToggle.addEventListener("click", () => {
-  const editing = document.body.classList.toggle("editing");
-  modeToggle.innerHTML = editing ? icons.pencil : icons.bookOpen;
-  modeToggle.title = editing ? "Edit mode" : "Reading mode";
+const newNoteForm = $("#new-note-form");
+
+function currentMode() {
+  return tabMode(activeTab());
+}
+
+// Switch the active note between reading and editing; leaving edit mode saves and re-renders.
+function setMode(mode) {
+  const tab = activeTab();
+  if (!tab || !tab.path || !current || current.path !== tab.path) return;
+  if (mode === currentMode()) return;
+  setTabMode(tab.id, mode);
+  if (mode === "edit") {
+    showNote(current, "edit");
+    editor.focus();
+  } else {
+    current.content = editor.value();
+    autosave.flush();
+    showNote(current, "read");
+    modeToggle.focus();
+  }
+}
+
+modeToggle.addEventListener("click", () => setMode(currentMode() === "edit" ? "read" : "edit"));
+
+// ---- the 'New note' prompt on an empty tab ----
+
+function setNewNoteHint(error) {
+  const hint = $("#new-note-hint");
+  hint.textContent = error || "Press Enter to create the note in the folder root and start writing.";
+  hint.classList.toggle("is-error", Boolean(error));
+}
+
+newNoteForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = $("#new-note-name");
+  const name = input.value.trim().replace(/\.md$/i, "");
+  if (!name) {
+    setNewNoteHint("Give the note a name first.");
+    input.focus();
+    return;
+  }
+  if (/[\\/]/.test(name)) {
+    setNewNoteHint("A note name cannot contain / or \\; it goes in the folder root.");
+    input.focus();
+    return;
+  }
+  input.disabled = true;
+  try {
+    const reply = await api("POST", "/api/file", { path: name, content: `# ${name}\n` });
+    await loadTree();
+    openNote(reply.path, { mode: "edit" });
+  } catch (err) {
+    console.error("Plexar Notes: could not create note", err);
+    setNewNoteHint(err.status === 409 ? `"${name}" already exists.` : `Could not create "${name}": ${err.message}`);
+    input.focus();
+  } finally {
+    input.disabled = false;
+  }
 });
 
 // ---- keyboard shortcuts ----
@@ -422,6 +580,13 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     $("#search").focus();
     $("#search").select();
+  } else if (key === "e" && !event.shiftKey) {
+    if (!current) return;
+    event.preventDefault();
+    setMode(currentMode() === "edit" ? "read" : "edit");
+  } else if (key === "s" && !event.shiftKey) {
+    event.preventDefault();
+    autosave.flush();
   } else if (key === "w" && !event.shiftKey) {
     if (!state.activeTab) return;
     event.preventDefault();
@@ -431,6 +596,14 @@ document.addEventListener("keydown", (event) => {
     const next = cycleTabs(state.tabs, state.activeTab, event.shiftKey ? -1 : 1);
     if (next) selectTab(next);
   }
+});
+
+// Whatever is still dirty goes out when the page is left or hidden.
+window.addEventListener("pagehide", () => {
+  autosave.flush();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") autosave.flush();
 });
 
 // ---- start ----
