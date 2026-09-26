@@ -41,6 +41,90 @@
   display: none;
 }
 
+/* ---- edit mode: a bare textarea in the same column ---- */
+
+/* It grows with its content and at least fills the note area, so #note is what scrolls. */
+.note-editor {
+  display: block;
+  width: 100%;
+  min-height: calc(100vh - var(--titlebar-height) - var(--tabbar-height) - var(--statusbar-height) - 168px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--px-text);
+  font-family: var(--px-font-mono);
+  font-size: 15px;
+  line-height: 1.6;
+  tab-size: 2;
+  caret-color: var(--px-accent);
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.note-editor[hidden] {
+  display: none;
+}
+.note-editor:focus,
+.note-editor:focus-visible {
+  outline: none; /* the caret in the accent is the focus cue; a ring around the page would not be */
+}
+.note-editor::placeholder {
+  color: var(--px-faint);
+}
+.note-editor::selection {
+  background: color-mix(in srgb, var(--px-accent) 35%, transparent);
+}
+.note-tools .icon-btn[hidden] {
+  display: none;
+}
+
+/* ---- the 'New note' prompt on an empty tab ---- */
+
+.new-note {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 440px;
+  margin: 0;
+}
+.new-note[hidden] {
+  display: none;
+}
+.new-note-label {
+  font-size: 12px;
+  color: var(--px-dim);
+}
+.new-note-input {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--px-border);
+  border-radius: var(--px-radius);
+  background: color-mix(in srgb, var(--px-surface) 85%, transparent);
+  color: var(--px-fg);
+  font: inherit;
+  font-size: 15px;
+  caret-color: var(--px-accent);
+}
+.new-note-input::placeholder {
+  color: var(--px-dim);
+}
+.new-note-input:focus {
+  outline: 2px solid var(--px-accent);
+  outline-offset: 0;
+  border-color: transparent;
+}
+.new-note-hint {
+  margin: 0;
+  color: var(--px-dim);
+  font-size: 12px;
+}
+.new-note-hint.is-error {
+  color: var(--px-error);
+}
+
 /* ---- status bar ---- */
 
 #statusbar {
@@ -64,4 +148,29 @@
   height: 7px;
   border-radius: 50%;
   background: var(--px-ok);
+}
+.status-saved.state-saved .saved-dot {
+  background: var(--px-ok);
+}
+.status-saved.state-dirty .saved-dot,
+.status-saved.state-saving .saved-dot {
+  background: var(--px-warn);
+}
+.status-saved.state-saving .saved-dot {
+  animation: saved-dot-pulse 1s ease-in-out infinite;
+}
+.status-saved.state-error .saved-dot {
+  background: var(--px-error);
+}
+.status-saved.state-error {
+  color: var(--px-error);
+}
+@keyframes saved-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-saved.state-saving .saved-dot {
+    animation: none;
+  }
 }

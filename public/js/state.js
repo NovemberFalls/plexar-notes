@@ -8,7 +8,7 @@ export const EXPLORER_MIN = 180;
 export const EXPLORER_MAX = 480;
 
 const DEFAULTS = {
-  tabs: [], // [{id, path}] where path is null for an empty 'New tab'
+  tabs: [], // [{id, path, mode}] where path is null for an empty 'New tab'; mode is 'read' or 'edit'
   activeTab: null, // id of the active tab
   sort: "name-asc",
   expanded: [], // folder paths that are open in the tree
@@ -35,7 +35,11 @@ function sanitise(saved) {
   s.tabs = Array.isArray(s.tabs)
     ? s.tabs
         .filter((t) => t && typeof t.id === "string")
-        .map((t) => ({ id: t.id, path: typeof t.path === "string" ? t.path : null }))
+        .map((t) => ({
+          id: t.id,
+          path: typeof t.path === "string" ? t.path : null,
+          mode: t.mode === "edit" ? "edit" : "read",
+        }))
     : [];
   if (!s.tabs.some((t) => t.id === s.activeTab)) s.activeTab = s.tabs.length ? s.tabs[0].id : null;
   if (!SORT_MODES.includes(s.sort)) s.sort = DEFAULTS.sort;
@@ -83,6 +87,16 @@ export function activeTab() {
 export function activePath() {
   const tab = activeTab();
   return tab ? tab.path : null;
+}
+
+// The reading/edit mode of a tab; tabs made before modes existed read.
+export function tabMode(tab) {
+  return tab && tab.mode === "edit" ? "edit" : "read";
+}
+
+export function setTabMode(id, mode) {
+  if (!state.tabs.some((t) => t.id === id && tabMode(t) !== mode)) return;
+  update({ tabs: state.tabs.map((t) => (t.id === id ? { ...t, mode } : t)) });
 }
 
 export function isExpanded(path) {
